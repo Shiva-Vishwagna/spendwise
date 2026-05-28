@@ -981,8 +981,10 @@ function renderEMI(){
         <span>Pending: <strong style="color:var(--text);font-family:var(--mono)">${fmt(totalLeft)}</strong></span>
       </div>
       ${cl?`<div class="alert green" style="margin-top:8px"><div style="font-size:14px">🎉</div><div style="font-size:11px;font-weight:700;color:var(--green)">${left} payment${left>1?'s':''} to go! Frees up ${fmt(e.amount)}/mo</div></div>`:''}
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="del-btn" onclick="delEMI(${e.id})" style="border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:11px;color:var(--muted)">🗑 Remove</button>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button onclick="editEMI(${e.id})" style="flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ Edit</button>
+        <button onclick="openReminder('emi',${e.id},'${e.name.replace(/'/g,"\'")}',${e.amount},${e.due})" style="flex:1;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);color:var(--amber);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">🔔 Remind</button>
+        <button onclick="delEMI(${e.id})" style="background:rgba(255,64,96,.08);border:1px solid rgba(255,64,96,.2);color:var(--red);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -1083,7 +1085,10 @@ function renderSavings(){
             <span class="sav-type" style="background:${st.c}18;color:${st.c}">${st.e} ${st.l}</span>
             ${s.rate?`<span style="font-size:10px;color:var(--muted);margin-left:6px">${s.rate}% p.a.</span>`:''}
           </div>
-          <button class="del-btn" onclick="delSav(${s.id})" style="border:1px solid var(--border);border-radius:7px;padding:3px 7px">🗑</button>
+          <div style="display:flex;gap:5px">
+          <button onclick="editSav(${s.id})" style="background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer">✏️</button>
+          <button class="del-btn" onclick="delSav(${s.id})" style="border:1px solid rgba(255,64,96,.2);border-radius:7px;padding:4px 8px;color:var(--red)">🗑</button>
+        </div>
         </div>
         <div class="sav-stats">
           <div class="sav-stat"><div class="sav-stat-v" style="color:var(--green)">${fmt(s.amount)}</div><div class="sav-stat-l">Invested</div></div>
@@ -1154,14 +1159,31 @@ function renderCC(){
       ${pct>=50?`<div style="font-size:10px;color:var(--muted);margin-top:6px">💡 ${pct>=80?'Reduce spending immediately to protect credit score.':pct>=50?'Consider paying down balance this month.':''}</div>`:''}
       ${spends.length?`<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
         <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Recent Transactions</div>
-        ${spends.slice(0,3).map(s=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
-          <span style="color:var(--muted)">${s.desc||'CC Spend'}</span>
-          <span style="font-family:var(--mono);color:var(--purple)">${fmt(s.amount)}</span>
+        ${spends.slice(0,5).map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted);flex:1">${s.desc||'CC Spend'} <span style="font-size:9px">${s.date}</span></span>
+          <span style="font-family:var(--mono);color:var(--purple);margin:0 8px">${fmt(s.amount)}</span>
+          <button onclick="editCCSpend(${s.id},'${CM}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px;padding:2px 4px">✏️</button>
         </div>`).join('')}
         ${spends.length>3?`<div style="font-size:10px;color:var(--muted);margin-top:4px">+${spends.length-3} more</div>`:''}
       </div>`:''}
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="del-btn" onclick="delCC(${cc.id})" style="border:1px solid var(--border);border-radius:7px;padding:3px 8px;font-size:10px">🗑 Remove Card</button>
+      <!-- Payment status -->
+      ${(()=>{
+        const payments=getPayments();
+        const paid=(payments[CM]||{})[cc.id]||0;
+        const pending=Math.max(used-paid,0);
+        return used>0?`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;background:var(--s3);border-radius:10px;padding:8px 10px">
+          <div>
+            <div style="font-size:10px;color:var(--muted)">BILL STATUS</div>
+            <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${pending===0?'var(--green)':'var(--red)'}">${pending===0?'✓ Fully Paid':'Pending: '+fmt(pending)}</div>
+            ${paid>0?'<div style="font-size:10px;color:var(--green)">Paid: '+fmt(paid)+'</div>':''}
+          </div>
+          <button onclick="openCCPayment(${cc.id})" style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--green);border-radius:9px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer">💳 Mark Paid</button>
+        </div>`:'';
+      })()}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button onclick="editCC(${cc.id})" style="flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ Edit</button>
+        <button onclick="openReminder('cc',${cc.id},'${cc.name.replace(/'/g,"\'")}',${used||0},${cc.due})" style="flex:1;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);color:var(--amber);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">🔔 Reminder</button>
+        <button onclick="editCC(${cc.id});document.getElementById('modal-del-btn').onclick=()=>{setCCs(getCCs().filter(x=>x.id!==${cc.id}));closeModal();renderCC();toast('🗑 Removed','var(--red)');}" style="background:rgba(255,64,96,.08);border:1px solid rgba(255,64,96,.2);color:var(--red);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -1275,9 +1297,323 @@ function showQR(){
 }
 function clearAll(){if(!confirm('Delete ALL data?'))return;localStorage.clear();location.reload();}
 
+
+// ════════════════ MODAL STATE ════════════════
+let modalType='', modalItem=null, modalDelFn=null, remItem=null, remType='', ccPayCard=null;
+
+function closeModal(){document.getElementById('edit-modal').style.display='none';}
+function closeRemModal(){document.getElementById('rem-modal').style.display='none';}
+function closeCCPay(){document.getElementById('cc-pay-modal').style.display='none';}
+
+// ── EDIT EXPENSE ──────────────────────────────────────────────────────────
+function editExp(id){
+  const txns=getTxns();
+  const t=txns.find(x=>x.id===id);
+  if(!t)return;
+  modalType='expense'; modalItem=t;
+  modalDelFn=()=>{saveTxns(getTxns().filter(x=>x.id!==id));closeModal();renderDash();toast('🗑 Deleted','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit Expense';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Description</label><input id="me-desc" value="${t.desc||''}" placeholder="Description..."/></div>
+    <div class="ir">
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="me-amt" value="${t.amount}" inputmode="decimal"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="me-date" value="${t.date}"/></div>
+    </div>
+    <div class="fg"><label>Category</label><select id="me-cat">${CATS.map(c=>`<option value="${c.id}" ${c.id===t.cat?'selected':''}>${c.e} ${c.l}</option>`).join('')}</select></div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ── EDIT EMI ──────────────────────────────────────────────────────────────
+function editEMI(id){
+  const e=getEMIs().find(x=>x.id===id);
+  if(!e)return;
+  modalType='emi'; modalItem=e;
+  modalDelFn=()=>{setEMIs(getEMIs().filter(x=>x.id!==id));closeModal();renderEMI();renderDash();toast('🗑 Removed','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit EMI';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Name</label><input id="me-emi-n" value="${e.name}"/></div>
+    <div class="ir">
+      <div class="fg"><label>Monthly Amount (₹)</label><input type="number" id="me-emi-a" value="${e.amount}" inputmode="decimal"/></div>
+      <div class="fg"><label>Due Date (day)</label><input type="number" id="me-emi-due" value="${e.due}" min="1" max="31" inputmode="numeric"/></div>
+    </div>
+    <div class="ir">
+      <div class="fg"><label>Total EMIs</label><input type="number" id="me-emi-t" value="${e.tenure}" inputmode="numeric"/></div>
+      <div class="fg"><label>Interest % p.a.</label><input type="number" id="me-emi-r" value="${e.rate||0}" step="0.1" inputmode="decimal"/></div>
+    </div>
+    <div class="fg"><label>Start Month</label><input type="month" id="me-emi-sm" value="${e.sm}"/></div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ── EDIT SAVINGS ──────────────────────────────────────────────────────────
+function editSav(id){
+  const s=getSavings().find(x=>x.id===id);
+  if(!s)return;
+  modalType='sav'; modalItem=s;
+  modalDelFn=()=>{setSavings(getSavings().filter(x=>x.id!==id));closeModal();renderSavings();toast('🗑 Removed','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit Investment';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Name</label><input id="me-sav-n" value="${s.name}"/></div>
+    <div class="ir">
+      <div class="fg"><label>Amount Invested (₹)</label><input type="number" id="me-sav-a" value="${s.amount}" inputmode="decimal"/></div>
+      <div class="fg"><label>Interest/Return %</label><input type="number" id="me-sav-r" value="${s.rate||0}" step="0.1" inputmode="decimal"/></div>
+    </div>
+    <div class="ir">
+      <div class="fg"><label>Start Date</label><input type="date" id="me-sav-s" value="${s.start||''}"/></div>
+      <div class="fg"><label>Maturity Date</label><input type="date" id="me-sav-m" value="${s.maturity||''}"/></div>
+    </div>
+    <div class="fg"><label>Monthly SIP (₹)</label><input type="number" id="me-sav-sip" value="${s.sip||0}" inputmode="decimal"/></div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ── EDIT CC CARD ──────────────────────────────────────────────────────────
+function editCC(id){
+  const c=getCCs().find(x=>x.id===id);
+  if(!c)return;
+  modalType='cc'; modalItem=c;
+  modalDelFn=()=>{setCCs(getCCs().filter(x=>x.id!==id));closeModal();renderCC();toast('🗑 Card removed','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit Card';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Card Name</label><input id="me-cc-n" value="${c.name}"/></div>
+    <div class="fg"><label>Bank</label><input id="me-cc-b" value="${c.bank||''}"/></div>
+    <div class="ir">
+      <div class="fg"><label>Credit Limit (₹)</label><input type="number" id="me-cc-lim" value="${c.limit||0}" inputmode="numeric"/></div>
+      <div class="fg"><label>Bill Due Date (day)</label><input type="number" id="me-cc-due" value="${c.due||15}" min="1" max="31" inputmode="numeric"/></div>
+    </div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ── EDIT CC SPEND ─────────────────────────────────────────────────────────
+function editCCSpend(id, month){
+  const mo=month||CM;
+  const spends=getCCSpends(mo);
+  const s=spends.find(x=>x.id===id);
+  if(!s)return;
+  modalType='cc-spend'; modalItem={...s,month:mo};
+  modalDelFn=()=>{setCCSpends(getCCSpends(mo).filter(x=>x.id!==id),mo);closeModal();renderCC();toast('🗑 Deleted','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit CC Spend';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Description</label><input id="me-ccs-desc" value="${s.desc||''}"/></div>
+    <div class="ir">
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="me-ccs-amt" value="${s.amount}" inputmode="decimal"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="me-ccs-date" value="${s.date}"/></div>
+    </div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ── SAVE MODAL ────────────────────────────────────────────────────────────
+function modalSave(){
+  if(modalType==='expense'){
+    const txns=getTxns();
+    const idx=txns.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    txns[idx]={...txns[idx],
+      desc:document.getElementById('me-desc').value.trim(),
+      amount:parseFloat(document.getElementById('me-amt').value)||txns[idx].amount,
+      date:document.getElementById('me-date').value,
+      cat:document.getElementById('me-cat').value,
+    };
+    saveTxns(txns); closeModal(); renderDash(); toast('✓ Updated!');
+  } else if(modalType==='emi'){
+    const emis=getEMIs();
+    const idx=emis.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    emis[idx]={...emis[idx],
+      name:document.getElementById('me-emi-n').value.trim(),
+      amount:parseFloat(document.getElementById('me-emi-a').value)||emis[idx].amount,
+      due:parseInt(document.getElementById('me-emi-due').value)||emis[idx].due,
+      tenure:parseInt(document.getElementById('me-emi-t').value)||emis[idx].tenure,
+      rate:parseFloat(document.getElementById('me-emi-r').value)||0,
+      sm:document.getElementById('me-emi-sm').value,
+    };
+    setEMIs(emis); closeModal(); renderEMI(); renderDash(); toast('✓ EMI updated!');
+  } else if(modalType==='sav'){
+    const savs=getSavings();
+    const idx=savs.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    savs[idx]={...savs[idx],
+      name:document.getElementById('me-sav-n').value.trim(),
+      amount:parseFloat(document.getElementById('me-sav-a').value)||savs[idx].amount,
+      rate:parseFloat(document.getElementById('me-sav-r').value)||0,
+      start:document.getElementById('me-sav-s').value,
+      maturity:document.getElementById('me-sav-m').value,
+      sip:parseFloat(document.getElementById('me-sav-sip').value)||0,
+    };
+    setSavings(savs); closeModal(); renderSavings(); toast('✓ Investment updated!');
+  } else if(modalType==='cc'){
+    const ccs=getCCs();
+    const idx=ccs.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    ccs[idx]={...ccs[idx],
+      name:document.getElementById('me-cc-n').value.trim(),
+      bank:document.getElementById('me-cc-b').value.trim(),
+      limit:parseFloat(document.getElementById('me-cc-lim').value)||0,
+      due:parseInt(document.getElementById('me-cc-due').value)||15,
+    };
+    setCCs(ccs); closeModal(); renderCC(); toast('✓ Card updated!');
+  } else if(modalType==='cc-spend'){
+    const mo=modalItem.month;
+    const spends=getCCSpends(mo);
+    const idx=spends.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    spends[idx]={...spends[idx],
+      desc:document.getElementById('me-ccs-desc').value.trim(),
+      amount:parseFloat(document.getElementById('me-ccs-amt').value)||spends[idx].amount,
+      date:document.getElementById('me-ccs-date').value,
+    };
+    setCCSpends(spends,mo); closeModal(); renderCC(); toast('✓ Updated!');
+  }
+}
+
+function modalDelete(){if(modalDelFn)modalDelFn();}
+
+// ════════════════ CC BILL PAYMENT ════════════════
+function getPayments(){ return L('wo_cc_payments')||{}; }
+function savePayments(v){ S('wo_cc_payments',v); }
+
+function openCCPayment(cardId){
+  const cc=getCCs().find(c=>c.id===cardId);
+  if(!cc)return;
+  ccPayCard=cc;
+  const spends=getCCSpends();
+  const totalBill=spends.filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
+  const payments=getPayments();
+  const paid=(payments[CM]||{})[cardId]||0;
+  const pending=Math.max(totalBill-paid,0);
+  document.getElementById('cc-pay-body').innerHTML=`
+    <div style="background:var(--s3);border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span style="color:var(--muted)">Total Bill This Month</span>
+        <span style="font-family:var(--mono);font-weight:800;color:var(--purple)">${fmt(totalBill)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span style="color:var(--muted)">Already Paid</span>
+        <span style="font-family:var(--mono);font-weight:800;color:var(--green)">${fmt(paid)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+        <span style="font-weight:700">Pending Amount</span>
+        <span style="font-family:var(--mono);font-weight:900;color:${pending>0?'var(--red)':'var(--green)'};">${pending>0?fmt(pending):'✓ Fully Paid'}</span>
+      </div>
+    </div>
+    <div class="fg"><label>Payment Amount (₹)</label><input type="number" id="cc-pay-amt" placeholder="${pending}" value="${pending}" inputmode="decimal"/></div>
+    <div class="fg"><label>Payment Date</label><input type="date" id="cc-pay-date" value="${today()}"/></div>
+    <div class="fg"><label>Payment Type</label>
+      <select id="cc-pay-type">
+        <option value="full">Full Payment</option>
+        <option value="min">Minimum Due</option>
+        <option value="partial">Partial Payment</option>
+      </select>
+    </div>`;
+  document.getElementById('cc-pay-modal').style.display='block';
+}
+
+function saveCCPayment(){
+  if(!ccPayCard)return;
+  const amt=parseFloat(document.getElementById('cc-pay-amt').value)||0;
+  if(!amt){toast('Enter payment amount','var(--red)');return;}
+  const payments=getPayments();
+  if(!payments[CM])payments[CM]={};
+  payments[CM][ccPayCard.id]=(payments[CM][ccPayCard.id]||0)+amt;
+  savePayments(payments);
+  closeCCPay();
+  renderCC();
+  toast(`✓ Payment of ${fmt(amt)} recorded!`);
+}
+
+// ════════════════ REMINDERS ════════════════
+function getReminders(){ return L('wo_reminders')||[]; }
+function saveReminders(v){ S('wo_reminders',v); }
+
+function openReminder(type, id, name, amount, dueDay){
+  remType=type; remItem={id,name,amount,dueDay};
+  const existing=getReminders().find(r=>r.id===id&&r.type===type)||{};
+  document.getElementById('rem-body').innerHTML=`
+    <div style="background:var(--s3);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700">${name}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${fmt(amount)} due on ${dueDay}${ord(dueDay)} every month</div>
+    </div>
+    <div class="fg"><label>Remind me (days before due)</label>
+      <select id="rem-days">
+        <option value="1" ${existing.daysBefore===1?'selected':''}>1 day before</option>
+        <option value="2" ${existing.daysBefore===2?'selected':''}>2 days before</option>
+        <option value="3" ${(existing.daysBefore||3)===3?'selected':''}>3 days before</option>
+        <option value="5" ${existing.daysBefore===5?'selected':''}>5 days before</option>
+        <option value="7" ${existing.daysBefore===7?'selected':''}>7 days before</option>
+      </select>
+    </div>
+    <div class="fg"><label>Note (optional)</label><input id="rem-note" value="${existing.note||''}" placeholder="e.g. Pay from HDFC account..."/></div>`;
+  document.getElementById('rem-modal').style.display='block';
+}
+
+function saveReminder(){
+  const days=parseInt(document.getElementById('rem-days').value)||3;
+  const note=document.getElementById('rem-note').value.trim();
+  const rems=getReminders().filter(r=>!(r.id===remItem.id&&r.type===remType));
+  rems.push({id:remItem.id,type:remType,name:remItem.name,amount:remItem.amount,dueDay:remItem.dueDay,daysBefore:days,note});
+  saveReminders(rems);
+  closeRemModal();
+  toast(`✓ Reminder set — ${days} days before due!`);
+}
+
+// Check reminders on load
+function checkReminders(){
+  const rems=getReminders();
+  const today5=new Date().getDate();
+  const alerts=[];
+  rems.forEach(r=>{
+    const daysTodue=r.dueDay-today5;
+    if(daysTodue>=0&&daysTodue<=r.daysBefore){
+      alerts.push({name:r.name,amount:r.amount,daysTodue,note:r.note});
+    }
+  });
+  if(alerts.length){
+    const msg=alerts.map(a=>`${a.name}: ${fmt(a.amount)} due in ${a.daysTodue} day${a.daysTodue!==1?'s':''}`).join(' | ');
+    setTimeout(()=>toast('🔔 '+msg,'var(--amber)'),1000);
+  }
+}
+
 // ════════════════ BOOT ════════════════
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-updateMLbls();initLock();
+updateMLbls();initLock();checkReminders();
 </script>
+
+<!-- ══════════════ EDIT MODAL ══════════════ -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:990;overflow-y:auto;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--border2);border-radius:20px;padding:20px;max-width:420px;margin:40px auto;position:relative">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:800" id="modal-title">Edit</div>
+      <button onclick="closeModal()" style="background:var(--s3);border:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-r btn-sm" id="modal-del-btn" onclick="modalDelete()">🗑 Delete</button>
+      <button class="btn btn-p" onclick="modalSave()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ REMINDER MODAL ══════════════ -->
+<div id="rem-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:990;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--border2);border-radius:20px;padding:20px;max-width:420px;margin:40px auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:800">🔔 Set Reminder</div>
+      <button onclick="closeRemModal()" style="background:var(--s3);border:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div id="rem-body"></div>
+    <button class="btn btn-p" style="margin-top:12px" onclick="saveReminder()">Set Reminder</button>
+  </div>
+</div>
+
+<!-- ══════════════ CC PAYMENT MODAL ══════════════ -->
+<div id="cc-pay-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:990;padding:20px">
+  <div style="background:var(--s2);border:1px solid var(--border2);border-radius:20px;padding:20px;max-width:420px;margin:40px auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:800">💳 Mark Bill Payment</div>
+      <button onclick="closeCCPay()" style="background:var(--s3);border:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div id="cc-pay-body"></div>
+    <button class="btn btn-g" style="margin-top:12px" onclick="saveCCPayment()">Mark as Paid</button>
+  </div>
+</div>
+
 </body>
 </html>
