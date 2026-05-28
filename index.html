@@ -308,11 +308,12 @@ select option{background:var(--s2)}
   <div class="ptitle">Add Entry</div>
   <div class="psub">Track every rupee you spend or save</div>
 
-  <div class="ttog">
-    <button class="ttbtn on" id="tadd-exp" onclick="setAddType('exp')">💸 Expense</button>
-    <button class="ttbtn" id="tadd-emi" onclick="setAddType('emi')">🔁 EMI/Loan</button>
-    <button class="ttbtn" id="tadd-cc" onclick="setAddType('cc')">💳 CC Spend</button>
-    <button class="ttbtn" id="tadd-sav" onclick="setAddType('sav')">💰 Savings</button>
+  <div class="ttog" style="flex-wrap:wrap;gap:4px">
+    <button class="ttbtn on" id="tadd-exp" onclick="setAddType('exp')" style="flex:1;min-width:80px">💸 Expense</button>
+    <button class="ttbtn" id="tadd-emi" onclick="setAddType('emi')" style="flex:1;min-width:80px">🔁 EMI</button>
+    <button class="ttbtn" id="tadd-cc" onclick="setAddType('cc')" style="flex:1;min-width:80px">💳 CC</button>
+    <button class="ttbtn" id="tadd-sav" onclick="setAddType('sav')" style="flex:1;min-width:80px">💰 Savings</button>
+    <button class="ttbtn" id="tadd-bank" onclick="setAddType('bank')" style="flex:1;min-width:80px">🏦 Bank</button>
   </div>
 
   <!-- EXPENSE -->
@@ -355,6 +356,8 @@ select option{background:var(--s2)}
     <div class="ptabs" id="cc-subtabs">
       <button class="ptab on" onclick="setCCSub('spend')">Add Spend</button>
       <button class="ptab" onclick="setCCSub('card')">Add Card</button>
+      <button class="ptab" onclick="setCCSub('emi')">CC EMI</button>
+      <button class="ptab" onclick="setCCSub('outstanding')">Outstanding</button>
     </div>
     <div id="f-cc-spend">
       <div class="fg"><label>Credit Card</label>
@@ -375,6 +378,31 @@ select option{background:var(--s2)}
         <div class="fg"><label>Bill Due Date (day)</label><input type="number" id="newcc-due" placeholder="e.g. 15" min="1" max="31" inputmode="numeric"/></div>
       </div>
       <button class="btn btn-p" onclick="addCC()">Add Card</button>
+    </div>
+
+    <!-- CC EMI FORM -->
+    <div id="f-cc-emi" style="display:none">
+      <div class="fg"><label>Credit Card</label><select id="ccemi-card-sel"></select></div>
+      <div class="fg"><label>EMI Description</label><input type="text" id="ccemi-desc" placeholder="e.g. iPhone 16 EMI, AC purchase..."/></div>
+      <div class="ir">
+        <div class="fg"><label>Total Amount (₹)</label><input type="number" id="ccemi-total" placeholder="0" inputmode="decimal"/></div>
+        <div class="fg"><label>No. of EMIs</label><input type="number" id="ccemi-count" placeholder="e.g. 12" inputmode="numeric"/></div>
+      </div>
+      <div class="ir">
+        <div class="fg"><label>Interest % p.a.</label><input type="number" id="ccemi-rate" placeholder="e.g. 15" step="0.1" inputmode="decimal"/></div>
+        <div class="fg"><label>Start Month</label><input type="month" id="ccemi-start"/></div>
+      </div>
+      <div id="ccemi-preview" style="background:var(--s3);border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--muted);display:none"></div>
+      <button class="btn btn-p" onclick="addCCEMI()">Add CC EMI</button>
+    </div>
+
+    <!-- CC OUTSTANDING FORM -->
+    <div id="f-cc-outstanding" style="display:none">
+      <div class="fg"><label>Credit Card</label><select id="ccout-card-sel"></select></div>
+      <div class="fg"><label>Outstanding Amount (₹)</label><input type="number" id="ccout-amt" placeholder="Total outstanding on card" inputmode="decimal"/></div>
+      <div class="fg"><label>Month</label><input type="month" id="ccout-month"/></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">This sets the opening outstanding. Use "Mark Paid" on each card to record payments made.</div>
+      <button class="btn btn-p" onclick="addOutstanding()">Set Outstanding</button>
     </div>
   </div>
 
@@ -405,6 +433,44 @@ select option{background:var(--s2)}
     <div class="fg"><label>Monthly SIP / Contribution (₹) — if recurring</label><input type="number" id="sav-sip" placeholder="0 if lumpsum" inputmode="decimal"/></div>
     <button class="btn btn-p" onclick="addSavings()">Add Investment</button>
   </div>
+
+  <!-- BANK ACCOUNT -->
+  <div id="f-bank" style="display:none">
+    <div class="ptabs" id="bank-subtabs">
+      <button class="ptab on" onclick="setBankSub('add')">Add Account</button>
+      <button class="ptab" onclick="setBankSub('txn')">Add Transaction</button>
+    </div>
+    <div id="f-bank-add">
+      <div class="fg"><label>Account Name</label><input type="text" id="bacc-name" placeholder="e.g. SBI Savings, HDFC Salary..."/></div>
+      <div class="ir">
+        <div class="fg"><label>Bank</label><input type="text" id="bacc-bank" placeholder="SBI, HDFC, ICICI..."/></div>
+        <div class="fg"><label>Account Type</label>
+          <select id="bacc-type">
+            <option value="savings">💰 Savings</option>
+            <option value="current">🏢 Current</option>
+            <option value="salary">💼 Salary</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>Opening Balance (₹)</label><input type="number" id="bacc-bal" placeholder="Current balance" inputmode="decimal"/></div>
+      <button class="btn btn-p" onclick="addBankAccount()">Add Account</button>
+    </div>
+    <div id="f-bank-txn" style="display:none">
+      <div class="fg"><label>Account</label><select id="bacc-sel"></select></div>
+      <div class="fg"><label>Type</label>
+        <div class="ttog" style="margin-bottom:0">
+          <button class="ttbtn on" id="btxn-credit" onclick="setBankTxnType('credit')">+ Credit</button>
+          <button class="ttbtn" id="btxn-debit" onclick="setBankTxnType('debit')">- Debit</button>
+        </div>
+      </div>
+      <div class="fg"><label>Description</label><input type="text" id="btxn-desc" placeholder="e.g. Salary credited, Rent paid..."/></div>
+      <div class="ir">
+        <div class="fg"><label>Amount (₹)</label><input type="number" id="btxn-amt" placeholder="0" inputmode="decimal"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="btxn-date"/></div>
+      </div>
+      <button class="btn btn-p" onclick="addBankTxn()">Add Transaction</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── EMI ── -->
@@ -423,9 +489,19 @@ select option{background:var(--s2)}
 <!-- ── SAVINGS ── -->
 <div id="p-sav" class="page">
   <div class="ptitle">Savings & Investments 💰</div>
-  <div class="psub">FD · MF · Gold · RD · PPF · Stocks</div>
-  <div id="sav-top"></div>
-  <div id="sav-list"></div>
+  <div class="psub">FD · RD · MF · Gold · PPF · Bank Accounts</div>
+  <div class="ptabs">
+    <button class="ptab on" onclick="setSavTab('inv')">📈 Investments</button>
+    <button class="ptab" onclick="setSavTab('bank')">🏦 Bank Accounts</button>
+  </div>
+  <div id="sav-inv-section">
+    <div id="sav-top"></div>
+    <div id="sav-list"></div>
+  </div>
+  <div id="sav-bank-section" style="display:none">
+    <div id="bank-top"></div>
+    <div id="bank-list"></div>
+  </div>
 </div>
 
 <!-- ── CC ── -->
@@ -659,7 +735,7 @@ function updateMLbls(){
 // ════════════════ ADD FORMS ════════════════
 function setAddType(t){
   addType=t;
-  ['exp','emi','cc','sav'].forEach(x=>{
+  ['exp','emi','cc','sav','bank'].forEach(x=>{
     document.getElementById('f-'+x).style.display=x===t?'block':'none';
     document.getElementById('tadd-'+x).classList.toggle('on',x===t);
   });
@@ -1080,12 +1156,7 @@ function renderSavings(){
   const total=savings.reduce((s,sv)=>s+sv.amount,0);
   const totalSIP=savings.filter(s=>s.sip>0).reduce((a,s)=>a+s.sip,0);
   let totalMatVal=0;
-  savings.forEach(sv=>{
-    if(sv.maturity&&sv.start){
-      const yrs=(new Date(sv.maturity)-new Date(sv.start))/(365.25*24*3600*1000);
-      totalMatVal+=sv.amount*Math.pow(1+(sv.rate||0)/100,yrs);
-    }else totalMatVal+=sv.amount;
-  });
+  savings.forEach(sv=>{ totalMatVal+=calcMaturity(sv); });
 
   document.getElementById('sav-top').innerHTML=`
     <div class="sg">
@@ -1111,13 +1182,12 @@ function renderSavings(){
     const st=SAV_TYPES[type]||SAV_TYPES.other;
     html+=`<div class="sec">${st.e} ${st.l}</div>`;
     items.forEach(s=>{
-      let matVal=s.amount;
-      let gainPct=0;
-      if(s.maturity&&s.start&&s.rate){
-        const yrs=(new Date(s.maturity)-new Date(s.start))/(365.25*24*3600*1000);
-        matVal=s.amount*Math.pow(1+(s.rate)/100,yrs);
-        gainPct=((matVal-s.amount)/s.amount*100);
-      }
+      const matVal=calcMaturity(s);
+      const invested=s.type==='rd'?(s.sip||0)*(() => {
+        if(!s.start||!s.maturity) return 1;
+        return Math.round((new Date(s.maturity)-new Date(s.start))/(30.44*24*3600*1000));
+      })() : s.amount;
+      let gainPct=invested>0?((matVal-invested)/invested*100):0;
       const today3=new Date();
       const matDate=s.maturity?new Date(s.maturity):null;
       const daysToMat=matDate?Math.round((matDate-today3)/(24*3600*1000)):null;
@@ -1136,9 +1206,9 @@ function renderSavings(){
         </div>
         </div>
         <div class="sav-stats">
-          <div class="sav-stat"><div class="sav-stat-v" style="color:var(--green)">${fmt(s.amount)}</div><div class="sav-stat-l">Invested</div></div>
+          <div class="sav-stat"><div class="sav-stat-v" style="color:var(--green)">${s.type==='rd'?fmt(s.sip||0)+'/mo':fmt(s.amount)}</div><div class="sav-stat-l">${s.type==='rd'?'Monthly RD':'Invested'}</div></div>
           <div class="sav-stat"><div class="sav-stat-v" style="color:var(--gold)">${fmt(matVal)}</div><div class="sav-stat-l">At Maturity</div></div>
-          <div class="sav-stat"><div class="sav-stat-v" style="color:${gainPct>0?'var(--green)':'var(--muted)'}">${gainPct>0?'+'+gainPct.toFixed(1)+'%':'—'}</div><div class="sav-stat-l">Return</div></div>
+          <div class="sav-stat"><div class="sav-stat-v" style="color:${gainPct>0?'var(--green)':'var(--muted)'}">${gainPct>0?'+'+gainPct.toFixed(1)+'%':'—'}</div><div class="sav-stat-l">Return %</div></div>
         </div>
         ${s.sip?`<div style="font-size:10px;color:var(--teal);margin-top:6px">Monthly SIP: ${fmt(s.sip)}</div>`:''}
         ${s.maturity?`<div style="font-size:10px;margin-top:5px;color:${isMature?'var(--green)':isNearMat?'var(--amber)':'var(--muted)'}">
@@ -1176,12 +1246,20 @@ function renderCC(){
   }
 
   document.getElementById('cc-cards').innerHTML=ccs.map(cc=>{
-    const used=ccSpends.filter(s=>s.cardId===cc.id).reduce((a,s)=>a+s.amount,0);
-    const pct=cc.limit?Math.min(used/cc.limit*100,100):0;
-    const col=pct>=80?'var(--red)':pct>=50?'var(--amber)':'var(--purple)';
     const spends=ccSpends.filter(s=>s.cardId===cc.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const thisMonthSpend=spends.reduce((a,s)=>a+s.amount,0);
+    const opening=(getCCOutstanding()[cc.id]||{})[CM]||0;
+    const totalDue=opening+thisMonthSpend;
+    const payHist=getCCPaymentHistory();
+    const payments=((payHist[cc.id]||{})[CM]||[]);
+    const totalPaid=payments.reduce((s,p)=>s+p.amount,0);
+    const pending=Math.max(totalDue-totalPaid,0);
+    const pct=cc.limit?Math.min(totalDue/cc.limit*100,100):0;
+    const col=pct>=80?'var(--red)':pct>=50?'var(--amber)':'var(--purple)';
     const today4=new Date().getDate();
     const daysLeft=cc.due-today4;
+    const ccemis=getCCEMIs().filter(e=>e.cardId===cc.id&&e.remaining>0);
+
     return `<div class="cc-card">
       <div class="cc-header">
         <div>
@@ -1189,46 +1267,69 @@ function renderCC(){
           <div class="cc-limit">${cc.bank}${cc.limit?' · Limit: '+fmt(cc.limit):''}</div>
         </div>
         <div style="text-align:right">
-          <div class="cc-used">${fmt(used)}</div>
-          ${cc.limit?`<span class="cc-pct" style="background:${col}18;color:${col}">${Math.round(pct)}% used</span>`:''}
+          <div class="cc-used">${fmt(totalDue)}</div>
+          ${cc.limit?`<span class="cc-pct" style="background:${col}18;color:${col}">${Math.round(pct)}% of limit</span>`:''}
         </div>
       </div>
       ${cc.limit?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${col}"></div></div>`:''}
-      <div class="cc-due">
-        <div class="due-dot" style="background:${daysLeft<=3?'var(--red)':daysLeft<=7?'var(--amber)':'var(--green)'}"></div>
-        <span style="color:${daysLeft<=3?'var(--red)':daysLeft<=7?'var(--amber)':'var(--muted)'};font-size:11px;font-weight:600">
-          ${daysLeft<0?'Bill overdue!':daysLeft===0?'Bill due TODAY!':daysLeft<=3?`Bill due in ${daysLeft} days`:`Bill due on ${cc.due}${ord(cc.due)}`}
-        </span>
-        ${pct>=80?`<span style="font-size:10px;color:var(--red);font-weight:700;margin-left:auto">⚠ High usage — affects credit score</span>`:''}
-      </div>
-      ${pct>=50?`<div style="font-size:10px;color:var(--muted);margin-top:6px">💡 ${pct>=80?'Reduce spending immediately to protect credit score.':pct>=50?'Consider paying down balance this month.':''}</div>`:''}
-      ${spends.length?`<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Recent Transactions</div>
-        ${spends.slice(0,5).map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
-          <span style="color:var(--muted);flex:1">${s.desc||'CC Spend'} <span style="font-size:9px">${s.date}</span></span>
-          <span style="font-family:var(--mono);color:var(--purple);margin:0 8px">${fmt(s.amount)}</span>
-          <button onclick="editCCSpend(${s.id},'${CM}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px;padding:2px 4px">✏️</button>
-        </div>`).join('')}
-        ${spends.length>3?`<div style="font-size:10px;color:var(--muted);margin-top:4px">+${spends.length-3} more</div>`:''}
-      </div>`:''}
-      <!-- Payment status -->
-      ${(()=>{
-        const payments=getPayments();
-        const paid=(payments[CM]||{})[cc.id]||0;
-        const pending=Math.max(used-paid,0);
-        return used>0?`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;background:var(--s3);border-radius:10px;padding:8px 10px">
+
+      <!-- Bill status with multi-payments -->
+      <div style="background:var(--s3);border-radius:12px;padding:10px 12px;margin:10px 0">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:8px">
           <div>
-            <div style="font-size:10px;color:var(--muted)">BILL STATUS</div>
-            <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${pending===0?'var(--green)':'var(--red)'}">${pending===0?'✓ Fully Paid':'Pending: '+fmt(pending)}</div>
-            ${paid>0?'<div style="font-size:10px;color:var(--green)">Paid: '+fmt(paid)+'</div>':''}
+            <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(opening||thisMonthSpend)}</div>
+            <div style="font-size:9px;color:var(--muted)">TOTAL BILL</div>
           </div>
-          <button onclick="openCCPayment(${cc.id})" style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--green);border-radius:9px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer">💳 Mark Paid</button>
-        </div>`:'';
-      })()}
-      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:var(--green)">${fmt(totalPaid)}</div>
+            <div style="font-size:9px;color:var(--muted)">PAID</div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:${pending>0?'var(--red)':'var(--green)'}">${fmt(pending)}</div>
+            <div style="font-size:9px;color:var(--muted)">PENDING</div>
+          </div>
+        </div>
+        ${payments.length?`<div style="border-top:1px solid var(--border);padding-top:7px">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Payment History</div>
+          ${payments.map(p=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
+            <span style="color:var(--muted)">${p.date} · ${p.type}</span>
+            <span style="color:var(--green);font-family:var(--mono);font-weight:700">+${fmt(p.amount)}</span>
+          </div>`).join('')}
+        </div>`:''}
+        <button onclick="openCCPayment(${cc.id})" style="width:100%;margin-top:8px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--green);border-radius:9px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">💳 Add Payment</button>
+      </div>
+
+      <!-- Due date -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <div style="width:6px;height:6px;border-radius:50%;background:${daysLeft<=3?'var(--red)':daysLeft<=7?'var(--amber)':'var(--green)'}"></div>
+        <span style="color:${daysLeft<=3?'var(--red)':daysLeft<=7?'var(--amber)':'var(--muted)'};font-size:11px;font-weight:600">
+          ${daysLeft<0?'Bill overdue!':daysLeft===0?'Bill due TODAY!':daysLeft<=3?`Due in ${daysLeft} days`:` Due on ${cc.due}${ord(cc.due)}`}
+        </span>
+      </div>
+
+      <!-- CC EMIs on this card -->
+      ${ccemis.length?`<div style="background:rgba(192,96,255,.06);border:1px solid rgba(192,96,255,.15);border-radius:10px;padding:8px 10px;margin-bottom:8px">
+        <div style="font-size:9px;color:var(--purple);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px">CC EMIs on this card</div>
+        ${ccemis.map(e=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)">
+          <span>${e.desc||'CC EMI'}</span>
+          <span style="font-family:var(--mono);color:var(--purple);font-weight:700">${fmt(e.emi)}/mo · ${e.remaining} left</span>
+        </div>`).join('')}
+      </div>`:''}
+
+      <!-- Recent spends -->
+      ${spends.length?`<div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Transactions</div>
+        ${spends.slice(0,5).map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <span style="flex:1;color:var(--muted)">${s.desc||'Spend'} <span style="font-size:9px">${s.date}</span></span>
+          <span style="font-family:var(--mono);color:var(--purple);margin:0 8px">${fmt(s.amount)}</span>
+          <button onclick="editCCSpend(${s.id},'${CM}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px">✏️</button>
+        </div>`).join('')}
+      </div>`:''}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button onclick="editCC(${cc.id})" style="flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ Edit</button>
-        <button onclick="openReminder('cc',${cc.id},'${cc.name.replace(/'/g,"\'")}',${used||0},${cc.due})" style="flex:1;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);color:var(--amber);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">🔔 Reminder</button>
-        <button onclick="editCC(${cc.id});document.getElementById('modal-del-btn').onclick=()=>{setCCs(getCCs().filter(x=>x.id!==${cc.id}));closeModal();renderCC();toast('🗑 Removed','var(--red)');}" style="background:rgba(255,64,96,.08);border:1px solid rgba(255,64,96,.2);color:var(--red);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
+        <button onclick="openReminder('cc',${cc.id},'${cc.name.replace(/'/g,"\'")}',${totalDue},${cc.due})" style="flex:1;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);color:var(--amber);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">🔔 Reminder</button>
+        <button onclick="delCC(${cc.id})" style="background:rgba(255,64,96,.08);border:1px solid rgba(255,64,96,.2);color:var(--red);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -1505,6 +1606,17 @@ function modalSave(){
       due:parseInt(document.getElementById('me-cc-due').value)||15,
     };
     setCCs(ccs); closeModal(); renderCC(); toast('✓ Card updated!');
+  } else if(modalType==='bank'){
+    const accs=getBankAccounts();
+    const idx=accs.findIndex(x=>x.id===modalItem.id);
+    if(idx<0)return;
+    accs[idx]={...accs[idx],
+      name:document.getElementById('me-bank-n').value.trim(),
+      bank:document.getElementById('me-bank-b').value.trim(),
+      openingBalance:parseFloat(document.getElementById('me-bank-bal').value)||0,
+      type:document.getElementById('me-bank-type').value,
+    };
+    setBankAccounts(accs);closeModal();renderBankAccounts();toast('✓ Account updated!');
   } else if(modalType==='cc-spend'){
     const mo=modalItem.month;
     const spends=getCCSpends(mo);
@@ -1530,32 +1642,38 @@ function openCCPayment(cardId){
   if(!cc)return;
   ccPayCard=cc;
   const spends=getCCSpends();
-  const totalBill=spends.filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
-  const payments=getPayments();
-  const paid=(payments[CM]||{})[cardId]||0;
-  const pending=Math.max(totalBill-paid,0);
+  const thisMonthSpend=spends.filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
+  const opening=(getCCOutstanding()[cardId]||{})[CM]||0;
+  const totalBill=opening+thisMonthSpend;
+  const payHist=getCCPaymentHistory();
+  const payments=((payHist[cardId]||{})[CM]||[]);
+  const totalPaid=payments.reduce((s,p)=>s+p.amount,0);
+  const pending=Math.max(totalBill-totalPaid,0);
   document.getElementById('cc-pay-body').innerHTML=`
     <div style="background:var(--s3);border-radius:12px;padding:12px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-        <span style="color:var(--muted)">Total Bill This Month</span>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+        <span style="color:var(--muted)">Total Bill</span>
         <span style="font-family:var(--mono);font-weight:800;color:var(--purple)">${fmt(totalBill)}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-        <span style="color:var(--muted)">Already Paid</span>
-        <span style="font-family:var(--mono);font-weight:800;color:var(--green)">${fmt(paid)}</span>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+        <span style="color:var(--muted)">Total Paid (${payments.length} payments)</span>
+        <span style="font-family:var(--mono);font-weight:800;color:var(--green)">${fmt(totalPaid)}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
-        <span style="font-weight:700">Pending Amount</span>
+      ${payments.map(p=>`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding:2px 0 2px 10px">
+        <span>${p.date} · ${p.type}</span><span style="color:var(--green)">+${fmt(p.amount)}</span>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px solid var(--border);padding-top:7px;margin-top:6px">
+        <span style="font-weight:800">Still Pending</span>
         <span style="font-family:var(--mono);font-weight:900;color:${pending>0?'var(--red)':'var(--green)'};">${pending>0?fmt(pending):'✓ Fully Paid'}</span>
       </div>
     </div>
-    <div class="fg"><label>Payment Amount (₹)</label><input type="number" id="cc-pay-amt" placeholder="${pending}" value="${pending}" inputmode="decimal"/></div>
+    <div class="fg"><label>This Payment Amount (₹)</label><input type="number" id="cc-pay-amt" placeholder="${pending}" value="${pending}" inputmode="decimal"/></div>
     <div class="fg"><label>Payment Date</label><input type="date" id="cc-pay-date" value="${today()}"/></div>
     <div class="fg"><label>Payment Type</label>
       <select id="cc-pay-type">
-        <option value="full">Full Payment</option>
-        <option value="min">Minimum Due</option>
-        <option value="partial">Partial Payment</option>
+        <option value="Full">Full Payment</option>
+        <option value="Min Due">Minimum Due</option>
+        <option value="Partial">Partial Payment</option>
       </select>
     </div>`;
   document.getElementById('cc-pay-modal').style.display='block';
@@ -1624,6 +1742,366 @@ function checkReminders(){
     const msg=alerts.map(a=>`${a.name}: ${fmt(a.amount)} due in ${a.daysTodue} day${a.daysTodue!==1?'s':''}`).join(' | ');
     setTimeout(()=>toast('🔔 '+msg,'var(--amber)'),1000);
   }
+}
+
+
+// ════════════════ PROPER RD MATURITY CALCULATION ════════════════
+// Indian bank RD formula: M = R × [((1+i)^n - 1) / (1-(1+i)^(-1/3))]
+// where R = monthly installment, i = rate/400 (quarterly), n = tenure in quarters
+function calcRDMaturity(monthly, ratePA, months){
+  if(!monthly||!ratePA||!months) return monthly*months;
+  const i = ratePA/400;           // quarterly rate
+  const n = months/3;             // number of quarters
+  // Standard Indian bank RD maturity formula
+  const maturity = monthly * (Math.pow(1+i,n)-1) / (1-Math.pow(1+i,-1/3));
+  return Math.round(maturity);
+}
+
+// FD maturity with quarterly compounding (standard Indian bank)
+function calcFDMaturity(principal, ratePA, months){
+  if(!principal||!ratePA||!months) return principal;
+  const n = months/3;             // quarters
+  const r = ratePA/400;           // quarterly rate
+  return Math.round(principal * Math.pow(1+r, n));
+}
+
+// PPF maturity (annual compounding)
+function calcPPFMaturity(yearly, ratePA, years){
+  let total=0;
+  for(let y=1;y<=years;y++) total=(total+yearly)*Math.pow(1+ratePA/100,1);
+  return Math.round(total);
+}
+
+function calcMaturity(s){
+  const type = s.type;
+  if(!s.start) return s.amount;
+  const startDate = new Date(s.start);
+  const endDate = s.maturity ? new Date(s.maturity) : null;
+  const months = endDate ? Math.round((endDate-startDate)/(30.44*24*3600*1000)) : 0;
+  const years = months/12;
+
+  if(type==='rd'){
+    // RD: monthly = s.sip or s.amount/months
+    const monthly = s.sip || (months>0?s.amount/months:s.amount);
+    return calcRDMaturity(monthly, s.rate||0, months||1);
+  } else if(type==='fd'){
+    return calcFDMaturity(s.amount, s.rate||0, months||12);
+  } else if(type==='ppf'){
+    const yearly = s.sip ? s.sip*12 : s.amount;
+    return calcPPFMaturity(yearly, s.rate||7.1, years||15);
+  } else if(type==='mf'||type==='stock'){
+    // CAGR
+    if(!years||!s.rate) return s.amount;
+    return Math.round(s.amount * Math.pow(1+s.rate/100, years));
+  } else {
+    // Simple compound annual
+    if(!years||!s.rate) return s.amount;
+    return Math.round(s.amount * Math.pow(1+s.rate/100, years));
+  }
+}
+
+// ════════════════ BANK ACCOUNTS ════════════════
+const getBankAccounts=()=>L('wo_banks')||[];
+const setBankAccounts=v=>S('wo_banks',v);
+const getBankTxns=acc=>L(`wo_bank_${acc}`)||[];
+const setBankTxns=(acc,v)=>S(`wo_bank_${acc}`,v);
+
+let bankTxnType='credit';
+let savTab='inv';
+
+function setSavTab(t){
+  savTab=t;
+  document.getElementById('sav-inv-section').style.display=t==='inv'?'block':'none';
+  document.getElementById('sav-bank-section').style.display=t==='bank'?'block':'none';
+  document.querySelectorAll('#p-sav .ptab').forEach((b,i)=>b.classList.toggle('on',i===(t==='inv'?0:1)));
+  if(t==='bank') renderBankAccounts();
+  else renderSavings();
+}
+
+function setBankSub(t){
+  document.getElementById('f-bank-add').style.display=t==='add'?'block':'none';
+  document.getElementById('f-bank-txn').style.display=t==='txn'?'block':'none';
+  document.querySelectorAll('#bank-subtabs .ptab').forEach((b,i)=>b.classList.toggle('on',i===(t==='add'?0:1)));
+  if(t==='txn') refreshBankSel();
+}
+
+function setBankTxnType(t){
+  bankTxnType=t;
+  document.getElementById('btxn-credit').classList.toggle('on',t==='credit');
+  document.getElementById('btxn-debit').classList.toggle('on',t==='debit');
+}
+
+function refreshBankSel(){
+  const sel=document.getElementById('bacc-sel');
+  const accs=getBankAccounts();
+  sel.innerHTML=accs.length?accs.map(a=>`<option value="${a.id}">${a.name} (${a.bank})</option>`).join(''):'<option>No accounts — add one first</option>';
+}
+
+function addBankAccount(){
+  const name=document.getElementById('bacc-name').value.trim();
+  const bank=document.getElementById('bacc-bank').value.trim();
+  const type=document.getElementById('bacc-type').value;
+  const bal=parseFloat(document.getElementById('bacc-bal').value)||0;
+  if(!name){toast('Enter account name','var(--red)');return;}
+  const accs=getBankAccounts();
+  accs.push({id:Date.now(),name,bank,type,openingBalance:bal});
+  setBankAccounts(accs);
+  toast(`✓ ${name} added!`);
+  document.getElementById('bacc-name').value='';
+  document.getElementById('bacc-bank').value='';
+  document.getElementById('bacc-bal').value='';
+}
+
+function addBankTxn(){
+  const accs=getBankAccounts();
+  if(!accs.length){toast('Add an account first','var(--red)');return;}
+  const accId=parseInt(document.getElementById('bacc-sel').value)||accs[0].id;
+  const desc=document.getElementById('btxn-desc').value.trim();
+  const amt=parseFloat(document.getElementById('btxn-amt').value)||0;
+  const date=document.getElementById('btxn-date').value;
+  if(!amt){toast('Enter amount','var(--red)');return;}
+  const txns=getBankTxns(accId);
+  txns.push({id:Date.now(),type:bankTxnType,desc,amount:amt,date:date||today()});
+  setBankTxns(accId,txns);
+  toast(`✓ ${bankTxnType==='credit'?'Credit':'Debit'} of ${fmt(amt)} recorded`);
+  document.getElementById('btxn-amt').value='';
+  document.getElementById('btxn-desc').value='';
+}
+
+function getAccountBalance(acc){
+  const txns=getBankTxns(acc.id);
+  const net=txns.reduce((s,t)=>t.type==='credit'?s+t.amount:s-t.amount,0);
+  return acc.openingBalance+net;
+}
+
+function renderBankAccounts(){
+  const accs=getBankAccounts();
+  const el=document.getElementById('bank-list');
+  const topEl=document.getElementById('bank-top');
+  if(!accs.length){
+    topEl.innerHTML='';
+    el.innerHTML='<div class="empty"><div class="empty-ic">🏦</div><p>No bank accounts added yet.<br>Tap + → Bank → Add Account</p></div>';
+    return;
+  }
+  const totalBal=accs.reduce((s,a)=>s+getAccountBalance(a),0);
+  topEl.innerHTML=`<div class="card glow-green" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="sl">Total Balance Across All Accounts</div><div style="font-size:26px;font-weight:900;font-family:var(--mono);color:var(--green)">${fmt(totalBal)}</div></div>
+      <div style="font-size:32px">🏦</div>
+    </div>
+  </div>`;
+
+  el.innerHTML=accs.map(acc=>{
+    const bal=getAccountBalance(acc);
+    const txns=getBankTxns(acc.id);
+    const thisMonthTxns=txns.filter(t=>t.date&&t.date.substring(0,7)===CM);
+    const thisMonthIn=thisMonthTxns.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+    const thisMonthOut=thisMonthTxns.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
+    const typeIcons={savings:'💰',current:'🏢',salary:'💼'};
+    const recentTxns=[...txns].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+    return `<div class="card glow-green" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-size:15px;font-weight:800">${typeIcons[acc.type]||'🏦'} ${acc.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${acc.bank} · ${acc.type}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${bal>=0?'var(--green)':'var(--red)'}">${fmt(bal)}</div>
+          <div style="font-size:10px;color:var(--muted)">current balance</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:rgba(0,229,160,.08);border-radius:10px;padding:8px;text-align:center">
+          <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--green)">+${fmt(thisMonthIn)}</div>
+          <div style="font-size:9px;color:var(--muted)">IN THIS MONTH</div>
+        </div>
+        <div style="background:rgba(255,64,96,.08);border-radius:10px;padding:8px;text-align:center">
+          <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--red)">-${fmt(thisMonthOut)}</div>
+          <div style="font-size:9px;color:var(--muted)">OUT THIS MONTH</div>
+        </div>
+      </div>
+      ${recentTxns.length?`<div style="border-top:1px solid var(--border);padding-top:8px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Recent Transactions</div>
+        ${recentTxns.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">
+          <div>
+            <span style="color:var(--text)">${t.desc||t.type}</span>
+            <span style="color:var(--muted);font-size:9px;margin-left:6px">${t.date}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:var(--mono);font-weight:700;color:${t.type==='credit'?'var(--green)':'var(--red)'}">${t.type==='credit'?'+':'-'}${fmt(t.amount)}</span>
+            <button onclick="delBankTxn(${acc.id},${t.id})" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px">🗑</button>
+          </div>
+        </div>`).join('')}
+      </div>`:''}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button onclick="editBankAccount(${acc.id})" style="flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ Edit</button>
+        <button onclick="delBankAccount(${acc.id})" style="background:rgba(255,64,96,.08);border:1px solid rgba(255,64,96,.2);color:var(--red);border-radius:9px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function delBankAccount(id){
+  if(!confirm('Remove this account?'))return;
+  setBankAccounts(getBankAccounts().filter(a=>a.id!==id));
+  localStorage.removeItem(`wo_bank_${id}`);
+  renderBankAccounts();toast('🗑 Removed','var(--red)');
+}
+
+function delBankTxn(accId,txnId){
+  if(!confirm('Delete transaction?'))return;
+  setBankTxns(accId,getBankTxns(accId).filter(t=>t.id!==txnId));
+  renderBankAccounts();toast('🗑 Deleted','var(--red)');
+}
+
+function editBankAccount(id){
+  const acc=getBankAccounts().find(a=>a.id===id);
+  if(!acc)return;
+  modalType='bank'; modalItem=acc;
+  modalDelFn=()=>{setBankAccounts(getBankAccounts().filter(a=>a.id!==id));localStorage.removeItem(`wo_bank_${id}`);closeModal();renderBankAccounts();toast('🗑 Removed','var(--red)');};
+  document.getElementById('modal-title').textContent='✏️ Edit Bank Account';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="fg"><label>Account Name</label><input id="me-bank-n" value="${acc.name}"/></div>
+    <div class="fg"><label>Bank</label><input id="me-bank-b" value="${acc.bank||''}"/></div>
+    <div class="ir">
+      <div class="fg"><label>Opening Balance (₹)</label><input type="number" id="me-bank-bal" value="${acc.openingBalance||0}" inputmode="decimal"/></div>
+      <div class="fg"><label>Type</label><select id="me-bank-type">
+        <option value="savings" ${acc.type==='savings'?'selected':''}>Savings</option>
+        <option value="current" ${acc.type==='current'?'selected':''}>Current</option>
+        <option value="salary" ${acc.type==='salary'?'selected':''}>Salary</option>
+      </select></div>
+    </div>`;
+  document.getElementById('edit-modal').style.display='block';
+}
+
+// ════════════════ CC EMI ════════════════
+const getCCEMIs=()=>L('wo_cc_emis')||[];
+const setCCEMIs=v=>S('wo_cc_emis',v);
+
+function setCCSub(t){
+  ['spend','card','emi','outstanding'].forEach(x=>{
+    const el=document.getElementById('f-cc-'+x);
+    if(el) el.style.display=x===t?'block':'none';
+  });
+  document.querySelectorAll('#cc-subtabs .ptab').forEach((b,i)=>b.classList.toggle('on',['spend','card','emi','outstanding'][i]===t));
+  if(t==='spend'||t==='emi'||t==='outstanding') refreshCCSel();
+  if(t==='emi') setupCCEMIPreview();
+  if(t==='outstanding'){
+    const td=new Date();
+    const el=document.getElementById('ccout-month');
+    if(el) el.value=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
+    const sel=document.getElementById('ccout-card-sel');
+    const ccs=getCCs();
+    if(sel) sel.innerHTML=ccs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  }
+}
+
+function setupCCEMIPreview(){
+  const sel=document.getElementById('ccemi-card-sel');
+  const ccs=getCCs();
+  if(sel) sel.innerHTML=ccs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const td=new Date();
+  const sm=document.getElementById('ccemi-start');
+  if(sm) sm.value=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
+  ['ccemi-total','ccemi-count','ccemi-rate'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',updateCCEMIPreview);
+  });
+}
+
+function updateCCEMIPreview(){
+  const total=parseFloat(document.getElementById('ccemi-total')?.value)||0;
+  const count=parseInt(document.getElementById('ccemi-count')?.value)||0;
+  const rate=parseFloat(document.getElementById('ccemi-rate')?.value)||0;
+  const prev=document.getElementById('ccemi-preview');
+  if(!prev||!total||!count) return;
+  // CC EMI formula with monthly rate
+  let emi;
+  if(rate>0){
+    const r=rate/1200;
+    emi=total*r*Math.pow(1+r,count)/(Math.pow(1+r,count)-1);
+  } else {
+    emi=total/count;
+  }
+  const totalPay=emi*count;
+  const interest=totalPay-total;
+  prev.style.display='block';
+  prev.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+    <div><div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(Math.round(emi))}</div><div style="font-size:9px;color:var(--muted)">Monthly EMI</div></div>
+    <div><div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--amber)">${fmt(Math.round(interest))}</div><div style="font-size:9px;color:var(--muted)">Total Interest</div></div>
+    <div><div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(Math.round(totalPay))}</div><div style="font-size:9px;color:var(--muted)">Total Payable</div></div>
+  </div>`;
+}
+
+function addCCEMI(){
+  const ccs=getCCs();
+  if(!ccs.length){toast('Add a card first','var(--red)');return;}
+  const cardId=parseInt(document.getElementById('ccemi-card-sel').value)||ccs[0].id;
+  const desc=document.getElementById('ccemi-desc').value.trim();
+  const total=parseFloat(document.getElementById('ccemi-total').value)||0;
+  const count=parseInt(document.getElementById('ccemi-count').value)||0;
+  const rate=parseFloat(document.getElementById('ccemi-rate').value)||0;
+  const start=document.getElementById('ccemi-start').value;
+  if(!total||!count){toast('Enter total amount and EMI count','var(--red)');return;}
+  let emi;
+  if(rate>0){const r=rate/1200;emi=total*r*Math.pow(1+r,count)/(Math.pow(1+r,count)-1);}
+  else emi=total/count;
+  const ccemis=getCCEMIs();
+  ccemis.push({id:Date.now(),cardId,desc,total,count,remaining:count,rate,emi:Math.round(emi),startMonth:start});
+  setCCEMIs(ccemis);
+  toast(`✓ CC EMI added — ${fmt(Math.round(emi))}/month for ${count} months`);
+  ['ccemi-desc','ccemi-total','ccemi-count','ccemi-rate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ════════════════ CC OUTSTANDING (multi-payment) ════════════════
+const getCCOutstanding=()=>L('wo_cc_outstanding')||{};
+const setCCOutstanding=v=>S('wo_cc_outstanding',v);
+const getCCPaymentHistory=()=>L('wo_cc_pay_history')||{};
+const setCCPaymentHistory=v=>S('wo_cc_pay_history',v);
+
+function addOutstanding(){
+  const ccs=getCCs();
+  const cardId=parseInt(document.getElementById('ccout-card-sel').value)||ccs[0]?.id;
+  const amt=parseFloat(document.getElementById('ccout-amt').value)||0;
+  const month=document.getElementById('ccout-month').value;
+  if(!amt||!cardId){toast('Select card and enter amount','var(--red)');return;}
+  const out=getCCOutstanding();
+  if(!out[cardId]) out[cardId]={};
+  out[cardId][month]=(out[cardId][month]||0)+amt;
+  setCCOutstanding(out);
+  toast(`✓ Outstanding of ${fmt(amt)} set for card`);
+  document.getElementById('ccout-amt').value='';
+}
+
+// Override saveCCPayment to support multi-payment with history
+function saveCCPayment(){
+  if(!ccPayCard)return;
+  const amt=parseFloat(document.getElementById('cc-pay-amt').value)||0;
+  if(!amt){toast('Enter payment amount','var(--red)');return;}
+  const date=document.getElementById('cc-pay-date').value||today();
+  const type=document.getElementById('cc-pay-type').value;
+  // Add to payment history
+  const hist=getCCPaymentHistory();
+  if(!hist[ccPayCard.id]) hist[ccPayCard.id]={};
+  if(!hist[ccPayCard.id][CM]) hist[ccPayCard.id][CM]=[];
+  hist[ccPayCard.id][CM].push({id:Date.now(),amount:amt,date,type});
+  setCCPaymentHistory(hist);
+  closeCCPay();
+  renderCC();
+  toast(`✓ Payment of ${fmt(amt)} recorded!`);
+}
+
+function getTotalPaidForCard(cardId, month){
+  const hist=getCCPaymentHistory();
+  return ((hist[cardId]||{})[month]||[]).reduce((s,p)=>s+p.amount,0);
+}
+
+function getTotalOutstandingForCard(cardId, month){
+  const out=getCCOutstanding();
+  const spends=getCCSpends(month);
+  const thisMonthSpend=spends.filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
+  const openingOut=((out[cardId]||{})[month]||0);
+  return openingOut+thisMonthSpend;
 }
 
 // ════════════════ INCOME MONTH NAV ════════════════
