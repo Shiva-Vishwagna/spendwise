@@ -1,14 +1,26 @@
 {
-  "name": "SpendWise — Budget Tracker",
+  "name": "SpendWise",
   "short_name": "SpendWise",
-  "description": "Track monthly spending, set budgets, get AI insights",
-  "start_url": "./index.html",
+  "description": "Smart monthly budget tracker with AI insights",
+  "start_url": "/spendwise/index.html",
+  "scope": "/spendwise/",
   "display": "standalone",
   "background_color": "#0F172A",
   "theme_color": "#0F172A",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity"],
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230F172A'/><text x='50%' y='55%' font-size='120' text-anchor='middle' dominant-baseline='middle'>💳</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230F172A'/><text x='50%' y='55%' font-size='320' text-anchor='middle' dominant-baseline='middle'>💳</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
