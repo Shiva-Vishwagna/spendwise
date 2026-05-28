@@ -7,263 +7,323 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="SpendWise"/>
-<title>SpendWise</title>
+<title>SpendWise — Smart Budget</title>
 <link rel="manifest" href="manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#0A0A0F;
-  --s1:#12121A;--s2:#1A1A26;--s3:#22223A;
+  --bg:#0A0A0F;--s1:#12121A;--s2:#1A1A26;--s3:#22223A;
   --border:#2A2A40;--border2:#353560;
   --text:#F0F0FF;--muted:#7070A0;--muted2:#4A4A70;
-  --blue:#6C63FF;--blue2:#8B85FF;--blue-glow:rgba(108,99,255,.25);
-  --green:#00E5A0;--green2:#00C88A;
-  --red:#FF4D6D;--red2:#FF2D55;
-  --amber:#FFB830;--amber2:#FF9500;
-  --purple:#BF5FFF;--teal:#00D4FF;
+  --blue:#6C63FF;--blue2:#8B85FF;--blue-glow:rgba(108,99,255,.2);
+  --green:#00E5A0;--red:#FF4D6D;--amber:#FFB830;--purple:#BF5FFF;--teal:#00D4FF;
   --r:18px;--font:'Outfit',sans-serif;--mono:'Space Mono',monospace;
 }
-html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;padding-bottom:88px}
+body::before{content:'';position:fixed;top:-30%;left:-20%;width:60%;height:60%;background:radial-gradient(ellipse,rgba(108,99,255,.07),transparent 70%);pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;bottom:-20%;right:-20%;width:50%;height:50%;background:radial-gradient(ellipse,rgba(0,229,160,.04),transparent 70%);pointer-events:none;z-index:0}
 
-/* GLOW BG */
-body::before{content:'';position:fixed;top:-30%;left:-20%;width:60%;height:60%;background:radial-gradient(ellipse,rgba(108,99,255,.08) 0%,transparent 70%);pointer-events:none;z-index:0}
-body::after{content:'';position:fixed;bottom:-20%;right:-20%;width:50%;height:50%;background:radial-gradient(ellipse,rgba(0,229,160,.05) 0%,transparent 70%);pointer-events:none;z-index:0}
+/* ── LOCK SCREEN ── */
+#lock-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px}
+#lock-screen.hidden{display:none}
+.lock-logo{font-size:56px;margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(108,99,255,.5))}
+.lock-title{font-size:28px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.lock-sub{font-size:14px;color:var(--muted);margin-bottom:40px;text-align:center}
+.pin-dots{display:flex;gap:14px;margin-bottom:32px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:all .2s}
+.pin-dot.filled{background:var(--blue);border-color:var(--blue);box-shadow:0 0 10px var(--blue)}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:280px}
+.num-btn{background:var(--s2);border:1px solid var(--border);border-radius:18px;padding:18px;font-size:22px;font-weight:700;color:var(--text);cursor:pointer;transition:all .15s;font-family:var(--font);text-align:center}
+.num-btn:active{background:var(--s3);transform:scale(.94)}
+.num-btn.del{font-size:18px;color:var(--muted)}
+.num-btn.zero{grid-column:2}
+.lock-error{color:var(--red);font-size:13px;font-weight:600;margin-top:12px;min-height:20px}
+.lock-hint{color:var(--muted);font-size:12px;margin-top:20px;text-align:center;line-height:1.6}
+.setup-mode .lock-sub{color:var(--green)}
 
-/* NAV */
+/* ── NAV ── */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;padding:0 8px 8px;background:linear-gradient(to top,var(--bg) 60%,transparent)}
 .nav-inner{background:var(--s2);border:1px solid var(--border);border-radius:22px;display:flex;padding:6px}
 .nav-btn{flex:1;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;color:var(--muted);font-family:var(--font);font-size:9px;font-weight:600;cursor:pointer;transition:all .2s;border-radius:16px;text-transform:uppercase;letter-spacing:.5px}
-.nav-btn svg{width:20px;height:20px;transition:all .2s}
+.nav-btn svg{width:20px;height:20px}
 .nav-btn.active{color:var(--blue2);background:var(--blue-glow)}
-.nav-btn.active svg{filter:drop-shadow(0 0 6px var(--blue))}
 
-/* PAGES */
-.page{display:none;padding:16px;animation:fadeUp .25s ease;position:relative;z-index:1}
+/* ── PAGES ── */
+.page{display:none;padding:16px;animation:fadeUp .2s ease;position:relative;z-index:1}
 .page.active{display:block}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-/* HEADER */
-.page-header{margin-bottom:20px}
+/* ── TYPOGRAPHY ── */
 .page-title{font-size:26px;font-weight:800;letter-spacing:-.5px}
 .page-sub{font-size:13px;color:var(--muted);margin-top:3px}
+.section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin:16px 0 10px;padding-left:2px}
 
-/* GLASS CARD */
+/* ── CARDS ── */
 .card{background:linear-gradient(135deg,var(--s2),var(--s1));border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:12px;position:relative;overflow:hidden}
 .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(108,99,255,.3),transparent)}
 .card-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;font-weight:700}
 
-/* HERO CARD */
-.hero-card{background:linear-gradient(135deg,#1A1230 0%,#0F1A2E 100%);border:1px solid var(--border2);border-radius:24px;padding:24px;margin-bottom:12px;position:relative;overflow:hidden}
-.hero-card::before{content:'';position:absolute;top:-40%;right:-20%;width:200px;height:200px;background:radial-gradient(circle,rgba(108,99,255,.2),transparent 70%);pointer-events:none}
-.hero-card::after{content:'';position:absolute;bottom:-40%;left:-10%;width:150px;height:150px;background:radial-gradient(circle,rgba(0,229,160,.1),transparent 70%);pointer-events:none}
-.hero-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-.hero-amount{font-size:40px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;line-height:1}
-.hero-amount .currency{font-size:22px;font-weight:400;opacity:.6;vertical-align:super}
+.hero-card{background:linear-gradient(135deg,#1A1230,#0F1A2E);border:1px solid var(--border2);border-radius:24px;padding:22px;margin-bottom:12px;position:relative;overflow:hidden}
+.hero-card::before{content:'';position:absolute;top:-40%;right:-15%;width:180px;height:180px;background:radial-gradient(circle,rgba(108,99,255,.18),transparent 70%);pointer-events:none}
+.hero-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.hero-amount{font-size:38px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;line-height:1}
+.hero-currency{font-size:20px;font-weight:400;opacity:.5;vertical-align:super}
 
-/* STAT GRID */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.stat-box{background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:14px;position:relative;overflow:hidden}
-.stat-box::after{content:'';position:absolute;top:0;right:0;width:60px;height:60px;border-radius:50%;opacity:.15;transform:translate(20px,-20px)}
-.stat-box.green::after{background:var(--green)}
-.stat-box.red::after{background:var(--red)}
-.stat-box.amber::after{background:var(--amber)}
-.stat-box.purple::after{background:var(--purple)}
-.stat-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-box{background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:14px}
+.stat-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 .stat-val{font-size:20px;font-weight:800;font-family:var(--mono)}
-.stat-val.green{color:var(--green)}
-.stat-val.red{color:var(--red)}
-.stat-val.amber{color:var(--amber)}
-.stat-val.purple{color:var(--purple)}
+.stat-val.green{color:var(--green)}.stat-val.red{color:var(--red)}.stat-val.amber{color:var(--amber)}.stat-val.purple{color:var(--purple)}.stat-val.blue{color:var(--blue2)}
 .stat-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:5px}
-.tag-green{background:rgba(0,229,160,.12);color:var(--green)}
-.tag-red{background:rgba(255,77,109,.12);color:var(--red)}
-.tag-amber{background:rgba(255,184,48,.12);color:var(--amber)}
+.tag-green{background:rgba(0,229,160,.1);color:var(--green)}
+.tag-red{background:rgba(255,77,109,.1);color:var(--red)}
+.tag-amber{background:rgba(255,184,48,.1);color:var(--amber)}
+.tag-purple{background:rgba(191,95,255,.1);color:var(--purple)}
+.tag-blue{background:rgba(108,99,255,.1);color:var(--blue2)}
 
-/* CATEGORY ROW */
-.cat-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.cat-icon-wrap{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.cat-info{flex:1;min-width:0}
-.cat-name{font-size:13px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
-.cat-bar-wrap{height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
-.cat-bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
-.cat-amounts{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
-.over-pill{font-size:9px;font-weight:800;background:rgba(255,77,109,.15);color:var(--red);padding:2px 6px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px}
-
-/* TXN ITEM */
-.txn-item{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;transition:border-color .2s}
-.txn-item:active{border-color:var(--border2)}
-.txn-emoji{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.txn-info{flex:1;min-width:0}
-.txn-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.txn-meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px}
-.txn-type-pill{font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;text-transform:uppercase}
-.pill-emi{background:rgba(191,95,255,.15);color:var(--purple)}
-.pill-expense{background:rgba(108,99,255,.15);color:var(--blue2)}
-.txn-amt{font-size:16px;font-weight:800;font-family:var(--mono)}
-.txn-amt.expense{color:var(--red)}
-.txn-amt.emi{color:var(--purple)}
-.del-btn{background:none;border:none;color:var(--muted2);cursor:pointer;padding:6px;border-radius:8px;font-size:14px;transition:color .15s}
-.del-btn:active{color:var(--red)}
-
-/* FORM */
+/* ── FORM ── */
 .form-group{margin-bottom:14px}
 label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
-input,select{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:13px 14px;color:var(--text);font-family:var(--font);font-size:14px;font-weight:500;outline:none;transition:border-color .2s,-webkit-appearance:none}
+input,select{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:13px 14px;color:var(--text);font-family:var(--font);font-size:14px;font-weight:500;outline:none;transition:border-color .2s}
 input:focus,select:focus{border-color:var(--blue)}
 select option{background:var(--s2)}
 .input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.input-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
-/* CAT PILL SELECTOR */
-.cat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none}
-.cat-scroll::-webkit-scrollbar{display:none}
-.cat-pill{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 14px;border-radius:14px;border:1px solid var(--border);background:var(--s2);cursor:pointer;transition:all .15s;flex-shrink:0;min-width:64px}
-.cat-pill span:first-child{font-size:20px}
-.cat-pill span:last-child{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap}
-.cat-pill.active{border-color:var(--blue);background:var(--blue-glow)}
-.cat-pill.active span:last-child{color:var(--blue2)}
-
-/* TYPE TOGGLE */
-.type-toggle{display:flex;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px;margin-bottom:14px}
+/* ── TYPE TOGGLE ── */
+.type-toggle{display:flex;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px;margin-bottom:16px}
 .type-btn{flex:1;padding:10px;border:none;border-radius:8px;background:none;color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
 .type-btn.active{background:var(--blue);color:#fff}
 
-/* BTN */
-.btn{width:100%;padding:15px;border:none;border-radius:14px;font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.2px}
-.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:0 4px 20px rgba(108,99,255,.3)}
-.btn-primary:active{transform:scale(.97);box-shadow:none}
-.btn-danger{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3)}
+/* ── CAT PILLS ── */
+.cat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.cat-scroll::-webkit-scrollbar{display:none}
+.cat-pill{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 12px;border-radius:14px;border:1px solid var(--border);background:var(--s2);cursor:pointer;transition:all .15s;flex-shrink:0;min-width:60px}
+.cat-pill span:first-child{font-size:20px}
+.cat-pill span:last-child{font-size:9px;color:var(--muted);font-weight:600;white-space:nowrap}
+.cat-pill.active{border-color:var(--blue);background:var(--blue-glow)}
+.cat-pill.active span:last-child{color:var(--blue2)}
 
-/* SECTION DIVIDER */
-.section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin:16px 0 10px;padding-left:4px}
+/* ── BTN ── */
+.btn{width:100%;padding:15px;border:none;border-radius:14px;font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:0 4px 20px rgba(108,99,255,.25)}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{background:var(--s2);border:1px solid var(--border);color:var(--text)}
+.btn-danger{background:rgba(255,77,109,.08);color:var(--red);border:1px solid rgba(255,77,109,.25)}
+.btn-green{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.25)}
+.btn-sm{padding:8px 14px;font-size:12px;width:auto;border-radius:10px}
 
-/* EMI CARD */
-.emi-card{background:linear-gradient(135deg,#1A0F2E,#0F1220);border:1px solid rgba(191,95,255,.25);border-radius:16px;padding:14px;margin-bottom:8px}
-.emi-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.emi-name{font-size:14px;font-weight:700}
-.emi-amount{font-size:16px;font-weight:800;font-family:var(--mono);color:var(--purple)}
-.emi-meta{display:flex;gap:12px}
-.emi-tag{font-size:11px;color:var(--muted)}
-.emi-tag strong{color:var(--text)}
-.emi-progress{height:4px;background:var(--s3);border-radius:2px;margin-top:10px;overflow:hidden}
-.emi-progress-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--blue2));border-radius:2px}
+/* ── TXN ── */
+.txn-item{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px}
+.txn-emoji{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.txn-info{flex:1;min-width:0}
+.txn-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txn-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.txn-amt{font-size:15px;font-weight:800;font-family:var(--mono)}
+.del-btn{background:none;border:none;color:var(--muted2);cursor:pointer;padding:6px;border-radius:8px;font-size:15px}
 
-/* INSIGHT */
+/* ── EMI CARD ── */
+.emi-card{background:linear-gradient(135deg,#1A0F2E,#0F1220);border:1px solid rgba(191,95,255,.2);border-radius:16px;padding:16px;margin-bottom:10px}
+.emi-name-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.emi-name{font-size:15px;font-weight:700}
+.emi-monthly{font-size:18px;font-weight:800;font-family:var(--mono);color:var(--purple)}
+.emi-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.emi-stat{text-align:center;background:var(--s3);border-radius:10px;padding:8px 4px}
+.emi-stat-val{font-size:13px;font-weight:800;font-family:var(--mono)}
+.emi-stat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.emi-bar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.emi-bar-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--blue2));border-radius:3px}
+.closing-badge{background:linear-gradient(135deg,rgba(0,229,160,.15),rgba(0,229,160,.05));border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:8px 12px;margin-top:8px;font-size:12px;color:var(--green);font-weight:600}
+
+/* ── BUDGET METER ── */
+.budget-meter{background:linear-gradient(135deg,#1A2030,#0F1A10);border:1px solid rgba(0,229,160,.15);border-radius:20px;padding:20px;margin-bottom:12px}
+.budget-ring-wrap{display:flex;align-items:center;gap:20px}
+.ring-svg{flex-shrink:0}
+.budget-breakdown{flex:1}
+.budget-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.budget-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.health-bar{height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin-top:10px}
+.health-fill{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+
+/* ── INSIGHT ── */
 .insight{border-radius:16px;padding:14px 16px;margin-bottom:10px;border:1px solid}
-.insight-good{background:rgba(0,229,160,.05);border-color:rgba(0,229,160,.2)}
-.insight-warn{background:rgba(255,184,48,.05);border-color:rgba(255,184,48,.2)}
-.insight-bad{background:rgba(255,77,109,.05);border-color:rgba(255,77,109,.2)}
-.insight-tip{background:rgba(108,99,255,.05);border-color:rgba(108,99,255,.2)}
-.insight-head{font-size:13px;font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:6px}
-.insight-body{font-size:12px;color:var(--muted);line-height:1.6}
+.insight-good{background:rgba(0,229,160,.04);border-color:rgba(0,229,160,.2)}
+.insight-warn{background:rgba(255,184,48,.04);border-color:rgba(255,184,48,.2)}
+.insight-bad{background:rgba(255,77,109,.04);border-color:rgba(255,77,109,.2)}
+.insight-tip{background:rgba(108,99,255,.04);border-color:rgba(108,99,255,.2)}
+.insight-head{font-size:13px;font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+.insight-body{font-size:12px;color:var(--muted);line-height:1.7}
+.saving-highlight{display:inline-block;background:rgba(0,229,160,.12);color:var(--green);font-weight:700;padding:1px 8px;border-radius:6px;font-family:var(--mono)}
 
-/* MONTH SELECTOR */
+/* ── FILTER CHIPS ── */
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+.filter-row::-webkit-scrollbar{display:none}
+.chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--s2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--muted);transition:all .15s}
+.chip.active{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* ── MONTH ROW ── */
 .month-row{display:flex;align-items:center;gap:8px}
-.month-btn{background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 10px;font-size:16px;cursor:pointer;transition:all .15s;line-height:1}
-.month-btn:active{background:var(--s3)}
-.month-display{flex:1;text-align:center;font-size:14px;font-weight:700;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+.mbtn{background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 11px;font-size:16px;cursor:pointer;transition:background .15s}
+.mbtn:active{background:var(--s3)}
+.mlabel{flex:1;text-align:center;font-size:14px;font-weight:700;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
 
-/* FILTER ROW */
-.filter-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
-.filter-scroll::-webkit-scrollbar{display:none}
-.filter-chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--s2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;color:var(--muted)}
-.filter-chip.active{background:var(--blue);border-color:var(--blue);color:#fff}
+/* ── SHARE ── */
+.share-card{background:linear-gradient(135deg,#1A2030,#0A1020);border:1px solid rgba(0,212,255,.2);border-radius:20px;padding:20px;margin-bottom:12px}
+.share-url{background:var(--s3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:11px;font-family:var(--mono);color:var(--teal);word-break:break-all;margin:10px 0}
+.qr-wrap{display:flex;justify-content:center;margin:16px 0}
 
-/* EMPTY */
-.empty{text-align:center;padding:50px 20px;color:var(--muted)}
-.empty-icon{font-size:52px;margin-bottom:14px;filter:grayscale(.3)}
-.empty p{font-size:14px;line-height:1.7}
+/* ── CAT BAR ── */
+.cat-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.cat-icon{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.cat-data{flex:1;min-width:0}
+.cat-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:12px;font-weight:600}
+.cat-bar{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.cat-bar-fill{height:100%;border-radius:3px}
 
-/* TOAST */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--s2);border:1px solid var(--green);border-radius:14px;padding:12px 20px;font-size:13px;font-weight:700;color:var(--green);z-index:999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+/* ── TOAST ── */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--s2);border:1px solid var(--green);border-radius:14px;padding:12px 20px;font-size:13px;font-weight:700;color:var(--green);z-index:9999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:12px}
+.empty p{font-size:13px;line-height:1.7}
+
+/* ── INCOME INPUT ── */
+.income-banner{background:linear-gradient(135deg,rgba(0,229,160,.08),rgba(0,212,255,.05));border:1px solid rgba(0,229,160,.2);border-radius:16px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
+.income-val{font-size:20px;font-weight:800;font-family:var(--mono);color:var(--green)}
 </style>
 </head>
 <body>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- DASHBOARD -->
+<!-- ═══════════════════════════════════════════════════════
+     LOCK SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="lock-screen">
+  <div class="lock-logo">💳</div>
+  <div class="lock-title" id="lock-title">SpendWise</div>
+  <div class="lock-sub" id="lock-sub">Enter your PIN to continue</div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="numpad">
+    <button class="num-btn" onclick="pinPress('1')">1</button>
+    <button class="num-btn" onclick="pinPress('2')">2</button>
+    <button class="num-btn" onclick="pinPress('3')">3</button>
+    <button class="num-btn" onclick="pinPress('4')">4</button>
+    <button class="num-btn" onclick="pinPress('5')">5</button>
+    <button class="num-btn" onclick="pinPress('6')">6</button>
+    <button class="num-btn" onclick="pinPress('7')">7</button>
+    <button class="num-btn" onclick="pinPress('8')">8</button>
+    <button class="num-btn" onclick="pinPress('9')">9</button>
+    <button class="num-btn del zero" onclick="pinPress('0')">0</button>
+    <button class="num-btn del" onclick="pinDel()">⌫</button>
+  </div>
+  <div class="lock-error" id="lock-error"></div>
+  <div class="lock-hint" id="lock-hint"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     DASHBOARD
+═══════════════════════════════════════════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="page-header">
-    <div style="display:flex;align-items:center;justify-content:space-between">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <div class="page-title">SpendWise 💳</div>
+      <div class="page-sub" id="dash-greeting">Good morning!</div>
+    </div>
+    <div class="month-row">
+      <button class="mbtn" onclick="shiftMonth(-1)">‹</button>
+      <div class="mlabel" id="dash-month">—</div>
+      <button class="mbtn" onclick="shiftMonth(1)">›</button>
+    </div>
+  </div>
+
+  <!-- Income banner -->
+  <div class="income-banner" id="income-banner" onclick="showPage('budget',document.querySelectorAll('.nav-btn')[4])">
+    <div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Monthly Income</div>
+      <div class="income-val" id="dash-income">Tap to set ›</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Disposable</div>
+      <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--teal)" id="dash-disposable">—</div>
+    </div>
+  </div>
+
+  <!-- Hero total -->
+  <div class="hero-card">
+    <div class="hero-label">Total Committed This Month</div>
+    <div class="hero-amount"><span class="hero-currency">₹</span><span id="hero-total">0</span></div>
+    <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
       <div>
-        <div class="page-title">SpendWise 💳</div>
-        <div class="page-sub">Your money, your control</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Day-to-Day</div>
+        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--red)" id="h-exp">₹0</div>
       </div>
-      <div class="month-row">
-        <button class="month-btn" onclick="shiftMonth(-1)">‹</button>
-        <div class="month-display" id="dash-month">May 2026</div>
-        <button class="month-btn" onclick="shiftMonth(1)">›</button>
+      <div style="width:1px;background:var(--border)"></div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">EMIs This Month</div>
+        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--purple)" id="h-emi">₹0</div>
+      </div>
+      <div style="width:1px;background:var(--border)"></div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Txns</div>
+        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--blue2)" id="h-count">0</div>
       </div>
     </div>
   </div>
 
-  <!-- Hero -->
-  <div class="hero-card">
-    <div class="hero-label">Total Spent This Month</div>
-    <div class="hero-amount"><span class="currency">₹</span><span id="hero-total">0</span></div>
-    <div style="display:flex;gap:16px;margin-top:14px">
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px">Expenses</div>
-        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--red)" id="hero-expenses">₹0</div>
-      </div>
-      <div style="width:1px;background:var(--border)"></div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px">EMIs Due</div>
-        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--purple)" id="hero-emis">₹0</div>
-      </div>
-      <div style="width:1px;background:var(--border)"></div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px">Transactions</div>
-        <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--blue2)" id="hero-count">0</div>
-      </div>
-    </div>
-  </div>
+  <!-- Budget health meter -->
+  <div class="budget-meter" id="budget-meter"></div>
 
   <!-- Stats -->
   <div class="stat-grid">
-    <div class="stat-box green">
-      <div class="stat-label">Highest Day</div>
-      <div class="stat-val green" id="stat-highday">₹0</div>
-      <div class="stat-tag tag-green" id="stat-highdate">—</div>
-    </div>
-    <div class="stat-box red">
+    <div class="stat-box">
       <div class="stat-label">Daily Average</div>
-      <div class="stat-val red" id="stat-avg">₹0</div>
+      <div class="stat-val red" id="s-avg">₹0</div>
       <div class="stat-tag tag-red">per day</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Month Projection</div>
+      <div class="stat-val amber" id="s-proj">₹0</div>
+      <div class="stat-tag tag-amber">estimated</div>
     </div>
   </div>
 
-  <!-- Category breakdown -->
+  <!-- EMI closing soon -->
+  <div id="emi-closing-section"></div>
+
+  <!-- Category -->
   <div class="card">
-    <div class="card-title">By Category</div>
+    <div class="card-title">Spending Breakdown</div>
     <div id="cat-breakdown"></div>
   </div>
 
   <!-- Recent -->
   <div class="card">
-    <div class="card-title">Recent Activity</div>
+    <div class="card-title">Recent Transactions</div>
     <div id="recent-list"></div>
   </div>
 </div>
 
-<!-- ADD -->
+<!-- ═══════════════════════════════════════════════════════
+     ADD
+═══════════════════════════════════════════════════════ -->
 <div id="page-add" class="page">
-  <div class="page-header">
+  <div style="margin-bottom:20px">
     <div class="page-title">Add Entry</div>
-    <div class="page-sub">Expense or EMI</div>
+    <div class="page-sub">Track every rupee</div>
   </div>
-
   <div class="type-toggle">
-    <button class="type-btn active" id="btn-expense" onclick="setType('expense')">💸 Expense</button>
-    <button class="type-btn" id="btn-emi" onclick="setType('emi')">🔁 EMI / Recurring</button>
+    <button class="type-btn active" id="btn-exp" onclick="setType('expense')">💸 Expense</button>
+    <button class="type-btn" id="btn-emi" onclick="setType('emi')">🔁 EMI / Loan</button>
   </div>
 
-  <!-- EXPENSE FORM -->
   <div id="form-expense">
     <div class="form-group">
       <label>Category</label>
@@ -276,7 +336,7 @@ select option{background:var(--s2)}
     <div class="input-row">
       <div class="form-group">
         <label>Amount (₹)</label>
-        <input type="number" id="exp-amount" placeholder="0" inputmode="decimal"/>
+        <input type="number" id="exp-amt" placeholder="0" inputmode="decimal"/>
       </div>
       <div class="form-group">
         <label>Date</label>
@@ -286,20 +346,19 @@ select option{background:var(--s2)}
     <button class="btn btn-primary" onclick="addExpense()">Add Expense</button>
   </div>
 
-  <!-- EMI FORM -->
   <div id="form-emi" style="display:none">
     <div class="form-group">
-      <label>EMI / Loan Name</label>
-      <input type="text" id="emi-name" placeholder="e.g. Home Loan, Car EMI, Personal Loan..." autocomplete="off"/>
+      <label>Loan / EMI Name</label>
+      <input type="text" id="emi-name" placeholder="e.g. Home Loan, Car EMI, Phone EMI..." autocomplete="off"/>
     </div>
     <div class="input-row">
       <div class="form-group">
-        <label>Monthly Amount (₹)</label>
-        <input type="number" id="emi-amount" placeholder="0" inputmode="decimal"/>
+        <label>Monthly EMI (₹)</label>
+        <input type="number" id="emi-amt" placeholder="0" inputmode="decimal"/>
       </div>
       <div class="form-group">
-        <label>Due Date (day of month)</label>
-        <input type="number" id="emi-dueday" placeholder="e.g. 5" min="1" max="31" inputmode="numeric"/>
+        <label>Due Date (day)</label>
+        <input type="number" id="emi-due" placeholder="e.g. 5" min="1" max="31" inputmode="numeric"/>
       </div>
     </div>
     <div class="input-row">
@@ -308,18 +367,23 @@ select option{background:var(--s2)}
         <input type="month" id="emi-start"/>
       </div>
       <div class="form-group">
-        <label>Total Months</label>
+        <label>Total EMIs</label>
         <input type="number" id="emi-tenure" placeholder="e.g. 36" inputmode="numeric"/>
       </div>
     </div>
     <div class="form-group">
-      <label>Category</label>
+      <label>Interest Rate % (optional)</label>
+      <input type="number" id="emi-rate" placeholder="e.g. 8.5" inputmode="decimal" step="0.1"/>
+    </div>
+    <div class="form-group">
+      <label>Type</label>
       <select id="emi-cat">
         <option value="home">🏠 Home Loan</option>
         <option value="car">🚗 Car Loan</option>
         <option value="personal">💳 Personal Loan</option>
         <option value="education">📚 Education Loan</option>
-        <option value="device">📱 Device / Gadget</option>
+        <option value="device">📱 Device / Gadget EMI</option>
+        <option value="credit">💳 Credit Card EMI</option>
         <option value="other">📦 Other</option>
       </select>
     </div>
@@ -327,70 +391,127 @@ select option{background:var(--s2)}
   </div>
 </div>
 
-<!-- HISTORY -->
-<div id="page-history" class="page">
-  <div class="page-header">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <div class="page-title">History</div>
-      <div class="month-row">
-        <button class="month-btn" onclick="shiftMonth(-1)">‹</button>
-        <div class="month-display" id="hist-month">May 2026</div>
-        <button class="month-btn" onclick="shiftMonth(1)">›</button>
-      </div>
+<!-- ═══════════════════════════════════════════════════════
+     EMI TRACKER
+═══════════════════════════════════════════════════════ -->
+<div id="page-emis" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <div class="page-title">EMI Tracker 🔁</div>
+      <div class="page-sub">All your loan commitments</div>
+    </div>
+    <div class="month-row">
+      <button class="mbtn" onclick="shiftMonth(-1)">‹</button>
+      <div class="mlabel" id="emi-month">—</div>
+      <button class="mbtn" onclick="shiftMonth(1)">›</button>
     </div>
   </div>
-  <div class="filter-scroll" id="hist-filters"></div>
-  <div id="hist-list"></div>
-</div>
-
-<!-- EMI TRACKER -->
-<div id="page-emis" class="page">
-  <div class="page-header">
-    <div class="page-title">EMI Tracker 🔁</div>
-    <div class="page-sub">All recurring commitments</div>
-  </div>
-  <div id="emi-summary-box"></div>
-  <div class="section-label">Active EMIs</div>
+  <div id="emi-top-stats"></div>
   <div id="emi-list"></div>
 </div>
 
-<!-- INSIGHTS -->
-<div id="page-insights" class="page">
-  <div class="page-header">
-    <div class="page-title">AI Insights 🤖</div>
-    <div class="page-sub" id="insight-month-label"></div>
+<!-- ═══════════════════════════════════════════════════════
+     HISTORY
+═══════════════════════════════════════════════════════ -->
+<div id="page-history" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div class="page-title">History</div>
+    <div class="month-row">
+      <button class="mbtn" onclick="shiftMonth(-1)">‹</button>
+      <div class="mlabel" id="hist-month">—</div>
+      <button class="mbtn" onclick="shiftMonth(1)">›</button>
+    </div>
   </div>
-  <div id="insights-list"></div>
+  <div class="filter-row" id="hist-filters"></div>
+  <div id="hist-list"></div>
 </div>
 
-<!-- BOTTOM NAV -->
+<!-- ═══════════════════════════════════════════════════════
+     BUDGET / SETTINGS
+═══════════════════════════════════════════════════════ -->
+<div id="page-budget" class="page">
+  <div style="margin-bottom:20px">
+    <div class="page-title">Budget & Settings</div>
+    <div class="page-sub">Personalise your tracker</div>
+  </div>
+
+  <!-- Income -->
+  <div class="card">
+    <div class="card-title">Monthly Income</div>
+    <div class="input-row" style="margin-bottom:10px">
+      <div class="form-group" style="margin:0">
+        <label>Net Monthly Income (₹)</label>
+        <input type="number" id="income-input" placeholder="e.g. 80000" inputmode="numeric"/>
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="btn btn-green btn-sm" onclick="saveIncome()">Save</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6">This helps calculate your disposable income after EMIs and expenses, and gives smarter budget recommendations.</div>
+  </div>
+
+  <!-- Change PIN -->
+  <div class="card">
+    <div class="card-title">Security</div>
+    <button class="btn btn-ghost" onclick="startChangePin()">🔒 Change PIN</button>
+  </div>
+
+  <!-- Share app -->
+  <div class="share-card">
+    <div style="font-size:14px;font-weight:700;color:var(--teal);margin-bottom:4px">📲 Share SpendWise</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Share this app with family or team. Each person logs in with their own PIN — data is stored separately per device.</div>
+    <div class="share-url" id="share-url">Loading...</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="copyLink()">📋 Copy Link</button>
+      <button class="btn btn-ghost btn-sm" onclick="shareLink()">↗ Share</button>
+      <button class="btn btn-ghost btn-sm" onclick="showQR()">QR Code</button>
+    </div>
+    <div id="qr-section" style="display:none;margin-top:12px">
+      <div class="qr-wrap" id="qr-wrap"></div>
+      <div style="font-size:11px;color:var(--muted);text-align:center">Scan to open on another phone</div>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="card">
+    <div class="card-title">Data</div>
+    <button class="btn btn-danger" style="margin-bottom:8px" onclick="clearMonth()">Clear This Month's Expenses</button>
+    <button class="btn btn-danger" onclick="clearAll()">⚠ Clear All Data</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     BOTTOM NAV
+═══════════════════════════════════════════════════════ -->
 <nav class="bottom-nav">
   <div class="nav-inner">
     <button class="nav-btn active" onclick="showPage('dashboard',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-      Dashboard
+      Home
     </button>
     <button class="nav-btn" onclick="showPage('add',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
       Add
     </button>
-    <button class="nav-btn" onclick="showPage('history',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      History
-    </button>
     <button class="nav-btn" onclick="showPage('emis',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
       EMIs
     </button>
-    <button class="nav-btn" onclick="showPage('insights',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-      Insights
+    <button class="nav-btn" onclick="showPage('history',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      History
+    </button>
+    <button class="nav-btn" onclick="showPage('budget',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Me
     </button>
   </div>
 </nav>
 
 <script>
-// ── DATA ────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════
 const CATS = [
   {id:'food',     label:'Food',       emoji:'🍽️', color:'#F97316'},
   {id:'transport',label:'Transport',  emoji:'🚗', color:'#3B82F6'},
@@ -403,93 +524,198 @@ const CATS = [
   {id:'savings',  label:'Savings',    emoji:'💰', color:'#00E5A0'},
   {id:'other',    label:'Other',      emoji:'📦', color:'#94A3B8'},
 ];
+const EMI_EMOJIS = {home:'🏠',car:'🚗',personal:'💳',education:'📚',device:'📱',credit:'💳',other:'📦'};
 
-const EMI_CATS = {home:'🏠',car:'🚗',personal:'💳',education:'📚',device:'📱',other:'📦'};
+let selectedCat   = 'food';
+let entryType     = 'expense';
+let histFilter    = 'all';
+let currentMonth  = todayMonth();
+let pinBuffer     = '';
+let pinMode       = 'login'; // login | setup | setup2 | change | change2
+let pinTemp       = '';
 
-let selectedCat = 'food';
-let entryType   = 'expense';
-let histFilter  = 'all';
-let currentMonth = todayMonth();
-
-function todayMonth(){
-  const d=new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-function monthLabel(k){
-  const [y,m]=k.split('-');
-  return new Date(y,m-1,1).toLocaleString('default',{month:'long',year:'numeric'});
-}
-function fmt(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
-
+// ════════════════════════════════════════════════════════
+//  STORAGE HELPERS
+// ════════════════════════════════════════════════════════
 function load(k){ return JSON.parse(localStorage.getItem(k)||'null'); }
 function save(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
-
 function getTxns(m=currentMonth){ return load(`sw_exp_${m}`)||[]; }
 function saveTxns(v,m=currentMonth){ save(`sw_exp_${m}`,v); }
 function getEMIs(){ return load('sw_emis')||[]; }
 function saveEMIs(v){ save('sw_emis',v); }
+function getIncome(){ return load('sw_income')||0; }
+function getPin(){ return load('sw_pin'); }
 
-// EMIs due in a given month
-function emisDueInMonth(month){
-  const [y,m] = month.split('-').map(Number);
+// ════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════
+function todayMonth(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function monthLabel(k){ const [y,m]=k.split('-'); return new Date(y,m-1,1).toLocaleString('default',{month:'long',year:'numeric'}); }
+function fmt(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
+function ordinal(n){ const s=['th','st','nd','rd']; const v=n%100; return s[(v-20)%10]||s[v]||s[0]; }
+function toast(msg,col='var(--green)'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.borderColor=col; t.style.color=col;
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+function emisDueIn(month){
+  const [y,m]=month.split('-').map(Number);
   return getEMIs().filter(e=>{
-    const [sy,sm] = e.startMonth.split('-').map(Number);
-    const monthsElapsed = (y-sy)*12+(m-sm);
-    return monthsElapsed>=0 && monthsElapsed<e.tenure;
+    const [sy,sm]=e.startMonth.split('-').map(Number);
+    const elapsed=(y-sy)*12+(m-sm);
+    return elapsed>=0&&elapsed<e.tenure;
   });
 }
 
-// ── Page nav ────────────────────────────────────────────────────────────────
+function greet(){
+  const h=new Date().getHours();
+  return h<12?'Good morning 👋':h<17?'Good afternoon 👋':'Good evening 👋';
+}
+
+// ════════════════════════════════════════════════════════
+//  PIN / LOCK
+// ════════════════════════════════════════════════════════
+function initLock(){
+  const stored=getPin();
+  if(!stored){ pinMode='setup'; updateLockUI(); }
+  else { pinMode='login'; updateLockUI(); }
+}
+
+function updateLockUI(){
+  const t=document.getElementById('lock-title');
+  const s=document.getElementById('lock-sub');
+  const h=document.getElementById('lock-hint');
+  pinBuffer='';
+  updateDots();
+  document.getElementById('lock-error').textContent='';
+  if(pinMode==='setup'){
+    t.textContent='Welcome to SpendWise 💳';
+    s.textContent='Create a 4-digit PIN to secure your data';
+    h.textContent='Your PIN protects your financial data on this device.';
+  } else if(pinMode==='setup2'){
+    t.textContent='Confirm PIN';
+    s.textContent='Enter the same PIN again to confirm';
+    h.textContent='';
+  } else if(pinMode==='change'){
+    t.textContent='Change PIN';
+    s.textContent='Enter your current PIN first';
+    h.textContent='';
+  } else if(pinMode==='change2'){
+    t.textContent='New PIN';
+    s.textContent='Enter your new 4-digit PIN';
+    h.textContent='';
+  } else if(pinMode==='change3'){
+    t.textContent='Confirm New PIN';
+    s.textContent='Enter the new PIN again to confirm';
+    h.textContent='';
+  } else {
+    t.textContent='SpendWise 💳';
+    s.textContent='Enter your PIN to continue';
+    h.textContent='';
+  }
+}
+
+function updateDots(){
+  for(let i=0;i<4;i++){
+    document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);
+  }
+}
+
+function pinPress(d){
+  if(pinBuffer.length>=4) return;
+  pinBuffer+=d;
+  updateDots();
+  if(pinBuffer.length===4) setTimeout(processPin,150);
+}
+
+function pinDel(){
+  pinBuffer=pinBuffer.slice(0,-1);
+  updateDots();
+}
+
+function processPin(){
+  const err=document.getElementById('lock-error');
+  if(pinMode==='setup'){
+    pinTemp=pinBuffer; pinMode='setup2'; updateLockUI();
+  } else if(pinMode==='setup2'){
+    if(pinBuffer===pinTemp){ save('sw_pin',pinBuffer); unlockApp(); toast('✓ PIN set!'); }
+    else { err.textContent='PINs do not match. Try again.'; pinMode='setup'; updateLockUI(); }
+  } else if(pinMode==='login'){
+    if(pinBuffer===getPin()){ unlockApp(); }
+    else { err.textContent='Wrong PIN. Try again.'; pinBuffer=''; updateDots(); }
+  } else if(pinMode==='change'){
+    if(pinBuffer===getPin()){ pinMode='change2'; updateLockUI(); }
+    else { err.textContent='Wrong current PIN.'; pinBuffer=''; updateDots(); }
+  } else if(pinMode==='change2'){
+    pinTemp=pinBuffer; pinMode='change3'; updateLockUI();
+  } else if(pinMode==='change3'){
+    if(pinBuffer===pinTemp){ save('sw_pin',pinBuffer); unlockApp(); toast('✓ PIN changed!'); }
+    else { err.textContent='PINs do not match.'; pinMode='change2'; updateLockUI(); }
+  }
+}
+
+function unlockApp(){
+  document.getElementById('lock-screen').classList.add('hidden');
+  renderDash();
+}
+
+function startChangePin(){
+  document.getElementById('lock-screen').classList.remove('hidden');
+  pinMode='change'; updateLockUI();
+}
+
+// ════════════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════════════
 function showPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  btn.classList.add('active');
-  if(id==='dashboard') renderDash();
-  if(id==='history')   renderHistory();
-  if(id==='emis')      renderEMIs();
-  if(id==='insights')  renderInsights();
-  if(id==='add')       { renderCatPills(); resetForms(); }
+  if(btn) btn.classList.add('active');
+  if(id==='dashboard'){ renderDash(); }
+  if(id==='emis')     { renderEMIs(); }
+  if(id==='history')  { renderHistory(); }
+  if(id==='budget')   { renderBudgetPage(); }
+  if(id==='add')      { renderCatPills(); resetForms(); }
+  updateMonthLabels();
 }
 
 function shiftMonth(d){
-  const [y,m] = currentMonth.split('-').map(Number);
-  const nd = new Date(y,m-1+d,1);
-  currentMonth = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
-  renderDash();
-  renderHistory();
-  document.querySelectorAll('#dash-month,#hist-month').forEach(el=>el.textContent=monthLabel(currentMonth));
+  const [y,m]=currentMonth.split('-').map(Number);
+  const nd=new Date(y,m-1+d,1);
+  currentMonth=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  updateMonthLabels();
+  renderDash(); renderEMIs(); renderHistory();
 }
 
-// ── Toast ───────────────────────────────────────────────────────────────────
-function toast(msg){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2200);
+function updateMonthLabels(){
+  const lbl=monthLabel(currentMonth);
+  ['dash-month','emi-month','hist-month'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.textContent=lbl;
+  });
 }
 
-// ── Type toggle ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  ADD FORMS
+// ════════════════════════════════════════════════════════
 function setType(t){
   entryType=t;
   document.getElementById('form-expense').style.display=t==='expense'?'block':'none';
   document.getElementById('form-emi').style.display    =t==='emi'?'block':'none';
-  document.getElementById('btn-expense').classList.toggle('active',t==='expense');
+  document.getElementById('btn-exp').classList.toggle('active',t==='expense');
   document.getElementById('btn-emi').classList.toggle('active',t==='emi');
 }
 
 function resetForms(){
-  document.getElementById('exp-desc').value='';
-  document.getElementById('exp-amount').value='';
+  ['exp-desc','exp-amt','emi-name','emi-amt','emi-due','emi-tenure','emi-rate'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
   document.getElementById('exp-date').value=new Date().toISOString().split('T')[0];
-  document.getElementById('emi-name').value='';
-  document.getElementById('emi-amount').value='';
-  document.getElementById('emi-dueday').value='';
-  document.getElementById('emi-tenure').value='';
   const td=new Date();
   document.getElementById('emi-start').value=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
 }
 
-// ── Cat pills ────────────────────────────────────────────────────────────────
 function renderCatPills(){
   document.getElementById('cat-pills').innerHTML=CATS.map(c=>`
     <div class="cat-pill ${c.id===selectedCat?'active':''}" onclick="selCat('${c.id}')">
@@ -498,89 +724,308 @@ function renderCatPills(){
 }
 function selCat(id){ selectedCat=id; renderCatPills(); }
 
-// ── Add expense ──────────────────────────────────────────────────────────────
 function addExpense(){
   const desc=document.getElementById('exp-desc').value.trim();
-  const amt =parseFloat(document.getElementById('exp-amount').value);
+  const amt =parseFloat(document.getElementById('exp-amt').value);
   const date=document.getElementById('exp-date').value;
-  if(!amt||amt<=0){ toast('❌ Enter a valid amount'); return; }
-  if(!date){ toast('❌ Pick a date'); return; }
-  const month=date.substring(0,7);
-  const txns=getTxns(month);
+  if(!amt||amt<=0){ toast('Enter a valid amount','var(--red)'); return; }
+  if(!date){ toast('Pick a date','var(--red)'); return; }
+  const m=date.substring(0,7);
+  const txns=getTxns(m);
   txns.push({id:Date.now(),cat:selectedCat,desc,amount:amt,date});
-  saveTxns(txns,month);
-  toast('✓ Expense added!');
-  resetForms();
+  saveTxns(txns,m);
+  toast(`✓ ${fmt(amt)} added!`);
+  document.getElementById('exp-amt').value='';
+  document.getElementById('exp-desc').value='';
 }
 
-// ── Add EMI ──────────────────────────────────────────────────────────────────
 function addEMI(){
   const name   =document.getElementById('emi-name').value.trim();
-  const amt    =parseFloat(document.getElementById('emi-amount').value);
-  const dueday =parseInt(document.getElementById('emi-dueday').value)||1;
+  const amt    =parseFloat(document.getElementById('emi-amt').value);
+  const due    =parseInt(document.getElementById('emi-due').value)||1;
   const start  =document.getElementById('emi-start').value;
   const tenure =parseInt(document.getElementById('emi-tenure').value)||0;
+  const rate   =parseFloat(document.getElementById('emi-rate').value)||0;
   const cat    =document.getElementById('emi-cat').value;
-  if(!name){ toast('❌ Enter EMI name'); return; }
-  if(!amt||amt<=0){ toast('❌ Enter valid amount'); return; }
-  if(!start){ toast('❌ Pick start month'); return; }
-  if(!tenure||tenure<=0){ toast('❌ Enter total months'); return; }
+  if(!name){ toast('Enter EMI name','var(--red)'); return; }
+  if(!amt||amt<=0){ toast('Enter valid amount','var(--red)'); return; }
+  if(!start){ toast('Pick start month','var(--red)'); return; }
+  if(!tenure||tenure<=0){ toast('Enter total EMIs','var(--red)'); return; }
   const emis=getEMIs();
-  emis.push({id:Date.now(),name,amount:amt,dueday,startMonth:start,tenure,cat,paidMonths:[]});
+  emis.push({id:Date.now(),name,amount:amt,dueday:due,startMonth:start,tenure,rate,cat});
   saveEMIs(emis);
-  toast('✓ EMI added!');
+  toast(`✓ ${name} EMI added!`);
   resetForms();
 }
 
-// ── Dashboard ────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  DASHBOARD
+// ════════════════════════════════════════════════════════
 function renderDash(){
-  document.getElementById('dash-month').textContent=monthLabel(currentMonth);
-  const txns  = getTxns();
-  const emis  = emisDueInMonth(currentMonth);
-  const totalExp  = txns.reduce((s,t)=>s+t.amount,0);
-  const totalEMI  = emis.reduce((s,e)=>s+e.amount,0);
-  const total     = totalExp+totalEMI;
+  document.getElementById('dash-greeting').textContent=greet();
+  const txns  =getTxns();
+  const emis  =emisDueIn(currentMonth);
+  const income=getIncome();
 
-  document.getElementById('hero-total').textContent    = Math.round(total).toLocaleString('en-IN');
-  document.getElementById('hero-expenses').textContent = fmt(totalExp);
-  document.getElementById('hero-emis').textContent     = fmt(totalEMI);
-  document.getElementById('hero-count').textContent    = txns.length;
+  const totalExp =txns.reduce((s,t)=>s+t.amount,0);
+  const totalEMI =emis.reduce((s,e)=>s+e.amount,0);
+  const total    =totalExp+totalEMI;
 
-  // Daily avg & highest day
-  const dayMap={};
-  txns.forEach(t=>{ dayMap[t.date]=(dayMap[t.date]||0)+t.amount; });
-  const days=Object.entries(dayMap);
-  const activeDays=days.length||1;
-  const avgDay=totalExp/activeDays;
-  const highDay=days.sort((a,b)=>b[1]-a[1])[0];
-  document.getElementById('stat-avg').textContent=fmt(avgDay);
-  document.getElementById('stat-highday').textContent=highDay?fmt(highDay[1]):'₹0';
-  document.getElementById('stat-highdate').textContent=highDay?new Date(highDay[0]).toLocaleDateString('en-IN',{day:'numeric',month:'short'}):'—';
+  // Income banner
+  if(income){
+    document.getElementById('dash-income').textContent=fmt(income);
+    const disp=income-total;
+    document.getElementById('dash-disposable').textContent=fmt(Math.max(disp,0))+(disp<0?' ⚠':'');
+  } else {
+    document.getElementById('dash-income').textContent='Tap to set ›';
+    document.getElementById('dash-disposable').textContent='—';
+  }
+
+  // Hero
+  document.getElementById('hero-total').textContent=Math.round(total).toLocaleString('en-IN');
+  document.getElementById('h-exp').textContent=fmt(totalExp);
+  document.getElementById('h-emi').textContent=fmt(totalEMI);
+  document.getElementById('h-count').textContent=txns.length;
+
+  // Stats
+  const today=new Date(); const dom=today.getDate(); const dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const dailyRate=totalExp/(dom||1);
+  const projExp=dailyRate*dim;
+  const projTotal=projExp+totalEMI;
+  document.getElementById('s-avg').textContent=fmt(dailyRate);
+  document.getElementById('s-proj').textContent=fmt(projTotal);
+
+  // Budget health meter
+  renderBudgetMeter(totalExp,totalEMI,income);
+
+  // EMI closing soon
+  renderEMIClosingSection();
 
   // Category breakdown
-  const cb=document.getElementById('cat-breakdown');
   const catData=CATS.map(c=>({...c,spent:txns.filter(t=>t.cat===c.id).reduce((s,t)=>s+t.amount,0)}))
     .filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
-  if(!catData.length){ cb.innerHTML='<div class="empty" style="padding:20px 0"><div class="empty-icon" style="font-size:32px">📊</div><p style="font-size:12px">No expenses yet this month</p></div>'; }
+  const cb=document.getElementById('cat-breakdown');
+  if(!catData.length){ cb.innerHTML='<div class="empty" style="padding:16px 0"><div class="empty-icon" style="font-size:32px">📊</div><p style="font-size:12px">No expenses yet</p></div>'; }
   else {
     const max=catData[0].spent;
     cb.innerHTML=catData.map(c=>`
       <div class="cat-row">
-        <div class="cat-icon-wrap" style="background:${c.color}18">${c.emoji}</div>
-        <div class="cat-info">
-          <div class="cat-name">${c.label}<span style="font-size:11px;color:var(--muted);font-weight:400">${((c.spent/totalExp)*100).toFixed(0)}%</span></div>
-          <div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${(c.spent/max)*100}%;background:${c.color}"></div></div>
+        <div class="cat-icon" style="background:${c.color}18">${c.emoji}</div>
+        <div class="cat-data">
+          <div class="cat-top">
+            <span>${c.label}</span>
+            <span style="font-family:var(--mono)">${fmt(c.spent)} <span style="color:var(--muted);font-size:10px">${((c.spent/totalExp)*100).toFixed(0)}%</span></span>
+          </div>
+          <div class="cat-bar"><div class="cat-bar-fill" style="width:${(c.spent/max)*100}%;background:${c.color}"></div></div>
         </div>
-        <div class="cat-amounts">${fmt(c.spent)}</div>
       </div>`).join('');
   }
 
-  // Recent 5
+  // Recent
   const rl=document.getElementById('recent-list');
   const recent=[...txns].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
-  if(!recent.length){ rl.innerHTML='<div class="empty" style="padding:16px 0"><p style="font-size:12px">No transactions yet. Tap + to add.</p></div>'; return; }
-  rl.innerHTML=recent.map(t=>txnHTML(t)).join('');
+  rl.innerHTML=recent.length?recent.map(t=>txnHTML(t)).join('')
+    :'<div class="empty" style="padding:16px 0"><p style="font-size:12px">No transactions. Tap + to add.</p></div>';
 }
+
+function renderBudgetMeter(exp,emi,income){
+  const el=document.getElementById('budget-meter');
+  const total=exp+emi;
+  if(!income){ el.innerHTML=`<div style="text-align:center;padding:10px 0;color:var(--muted);font-size:12px">Set your income in <strong style="color:var(--teal)">Me → Budget</strong> for personalised budget health</div>`; return; }
+  const pct=Math.min((total/income)*100,100);
+  const remaining=income-total;
+  const color=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--green)';
+  const label=pct>=90?'🚨 Overspent':pct>=70?'⚠ Near limit':'✓ Healthy';
+  el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Budget Health</div>
+      <div style="font-size:12px;font-weight:800;color:${color}">${label}</div>
+    </div>
+    <div style="display:flex;gap:20px;margin-bottom:14px">
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Used</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:${color}">${Math.round(pct)}%</div></div>
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Income: ${fmt(income)}</div>
+        <div class="health-bar"><div class="health-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${color}aa)"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted)">
+          <span>Spent: ${fmt(total)}</span><span style="color:${remaining<0?'var(--red)':'var(--green)'}">Left: ${fmt(Math.max(remaining,0))}</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div style="background:var(--s3);border-radius:10px;padding:8px;text-align:center">
+        <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--red)">${fmt(exp)}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">Expenses</div>
+      </div>
+      <div style="background:var(--s3);border-radius:10px;padding:8px;text-align:center">
+        <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--purple)">${fmt(emi)}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">EMIs</div>
+      </div>
+      <div style="background:var(--s3);border-radius:10px;padding:8px;text-align:center">
+        <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:${remaining<0?'var(--red)':'var(--green)'}">
+          ${remaining<0?'-':''}${fmt(Math.abs(remaining))}
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">Remaining</div>
+      </div>
+    </div>`;
+}
+
+function renderEMIClosingSection(){
+  const el=document.getElementById('emi-closing-section');
+  const [cy,cm]=currentMonth.split('-').map(Number);
+  const closing=getEMIs().filter(e=>{
+    const [sy,sm]=e.startMonth.split('-').map(Number);
+    const left=e.tenure-((cy-sy)*12+(cm-sm));
+    return left>0&&left<=3;
+  });
+  if(!closing.length){ el.innerHTML=''; return; }
+  const savings=closing.reduce((s,e)=>s+e.amount,0);
+  el.innerHTML=`
+    <div class="card" style="border-color:rgba(0,229,160,.3);background:linear-gradient(135deg,rgba(0,229,160,.05),var(--s1))">
+      <div class="card-title" style="color:var(--green)">🎉 EMIs Closing Soon!</div>
+      ${closing.map(e=>{
+        const [sy,sm]=e.startMonth.split('-').map(Number);
+        const left=e.tenure-((cy-sy)*12+(cm-sm));
+        return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700">${EMI_EMOJIS[e.cat]||'📦'} ${e.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${left} payment${left>1?'s':''} remaining</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--green)">${fmt(e.amount)}/mo</div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:10px 12px;margin-top:4px">
+        <div style="font-size:12px;color:var(--green);font-weight:700">💡 You'll free up <span style="font-family:var(--mono);font-size:14px">${fmt(savings)}/month</span> once these close!</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Consider redirecting this to savings or investments.</div>
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════
+//  EMI TRACKER PAGE
+// ════════════════════════════════════════════════════════
+function renderEMIs(){
+  const emis   =getEMIs();
+  const [cy,cm]=currentMonth.split('-').map(Number);
+  const active =emisDueIn(currentMonth);
+  const totalMonthly =active.reduce((s,e)=>s+e.amount,0);
+
+  // Total remaining across all
+  let totalRemaining=0, totalOriginal=0;
+  emis.forEach(e=>{
+    const [sy,sm]=e.startMonth.split('-').map(Number);
+    const elapsed=Math.max((cy-sy)*12+(cm-sm),0);
+    const left=Math.max(e.tenure-elapsed,0);
+    totalRemaining+=left*e.amount;
+    totalOriginal +=e.tenure*e.amount;
+  });
+
+  document.getElementById('emi-top-stats').innerHTML=`
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-label">This Month</div><div class="stat-val purple">${fmt(totalMonthly)}</div><div class="stat-tag tag-purple">${active.length} active</div></div>
+      <div class="stat-box"><div class="stat-label">Still Owe</div><div class="stat-val amber">${fmt(totalRemaining)}</div><div class="stat-tag tag-amber">total pending</div></div>
+    </div>`;
+
+  const el=document.getElementById('emi-list');
+  if(!emis.length){ el.innerHTML='<div class="empty"><div class="empty-icon">🔁</div><p>No EMIs yet.<br>Tap + → EMI to add one.</p></div>'; return; }
+
+  // Sort: active first, then by months left ascending
+  const sorted=[...emis].sort((a,b)=>{
+    const leftA=a.tenure-Math.max((cy-(+a.startMonth.split('-')[0]))*12+(cm-(+a.startMonth.split('-')[1])),0);
+    const leftB=b.tenure-Math.max((cy-(+b.startMonth.split('-')[0]))*12+(cm-(+b.startMonth.split('-')[1])),0);
+    const aActive=leftA>0,bActive=leftB>0;
+    if(aActive&&!bActive) return -1;
+    if(!aActive&&bActive) return 1;
+    return leftA-leftB;
+  });
+
+  el.innerHTML=sorted.map(e=>{
+    const [sy,sm]=e.startMonth.split('-').map(Number);
+    const elapsed=Math.max((cy-sy)*12+(cm-sm),0);
+    const paid   =Math.min(elapsed,e.tenure);
+    const left   =e.tenure-paid;
+    const pct    =(paid/e.tenure)*100;
+    const isActive=elapsed>=0&&elapsed<e.tenure;
+    const totalPaid=paid*e.amount;
+    const totalLeft=left*e.amount;
+    const closing=isActive&&left<=3;
+
+    return `<div class="emi-card" style="${!isActive?'opacity:.55':''}">
+      <div class="emi-name-row">
+        <div>
+          <div class="emi-name">${EMI_EMOJIS[e.cat]||'📦'} ${e.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Due ${e.dueday}${ordinal(e.dueday)} · ${monthLabel(e.startMonth)} · ${e.rate?e.rate+'% p.a.':''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="emi-monthly">${fmt(e.amount)}</div>
+          <div style="font-size:10px;color:var(--muted)">per month</div>
+        </div>
+      </div>
+      <div class="emi-stats">
+        <div class="emi-stat">
+          <div class="emi-stat-val" style="color:var(--green)">${paid}</div>
+          <div class="emi-stat-lbl">Paid</div>
+        </div>
+        <div class="emi-stat">
+          <div class="emi-stat-val" style="color:${left<=3&&isActive?'var(--green)':'var(--amber)'}">${isActive?left:'Done ✓'}</div>
+          <div class="emi-stat-lbl">Left</div>
+        </div>
+        <div class="emi-stat">
+          <div class="emi-stat-val" style="color:var(--blue2)">${e.tenure}</div>
+          <div class="emi-stat-lbl">Total</div>
+        </div>
+      </div>
+      <div class="emi-bar"><div class="emi-bar-fill" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:${closing?'8px':'0'}">
+        <span>Paid: <strong style="color:var(--text);font-family:var(--mono)">${fmt(totalPaid)}</strong></span>
+        <span>Pending: <strong style="color:var(--text);font-family:var(--mono)">${fmt(totalLeft)}</strong></span>
+      </div>
+      ${closing?`<div class="closing-badge">🎉 ${left} payment${left>1?'s':''} to go — freeing up ${fmt(e.amount)}/month soon!</div>`:''}
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <button class="del-btn" onclick="delEMI(${e.id})" style="border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--muted)">🗑 Remove</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+//  HISTORY
+// ════════════════════════════════════════════════════════
+function renderHistory(){
+  const txns=getTxns();
+  const emis=emisDueIn(currentMonth);
+  const fp=document.getElementById('hist-filters');
+  fp.innerHTML=`<div class="chip ${histFilter==='all'?'active':''}" onclick="setHF('all')">All</div>
+    <div class="chip ${histFilter==='expense'?'active':''}" onclick="setHF('expense')">💸 Expenses</div>
+    <div class="chip ${histFilter==='emi'?'active':''}" onclick="setHF('emi')">🔁 EMIs</div>`
+    +CATS.filter(c=>txns.some(t=>t.cat===c.id)).map(c=>
+      `<div class="chip ${histFilter===c.id?'active':''}" onclick="setHF('${c.id}')">${c.emoji} ${c.label}</div>`).join('');
+
+  const hl=document.getElementById('hist-list');
+  let items=[];
+  if(histFilter!=='emi'){
+    const f=histFilter==='all'||histFilter==='expense'?txns:txns.filter(t=>t.cat===histFilter);
+    items=f.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>txnHTML(t,true));
+  }
+  if(histFilter==='all'||histFilter==='emi'){
+    items=[...items,...emis.map(e=>`
+      <div class="txn-item">
+        <div class="txn-emoji" style="background:rgba(191,95,255,.12)">${EMI_EMOJIS[e.cat]||'📦'}</div>
+        <div class="txn-info">
+          <div class="txn-name">${e.name}</div>
+          <div class="txn-meta">🔁 EMI · Due ${e.dueday}${ordinal(e.dueday)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="txn-amt" style="color:var(--purple)">${fmt(e.amount)}</div>
+          <button class="del-btn" onclick="delEMI(${e.id})">🗑</button>
+        </div>
+      </div>`)];
+  }
+  hl.innerHTML=items.length?items.join(''):'<div class="empty"><div class="empty-icon">🗒️</div><p>No entries found</p></div>';
+}
+
+function setHF(f){ histFilter=f; renderHistory(); }
 
 function txnHTML(t,showDel=false){
   const cat=CATS.find(c=>c.id===t.cat)||CATS[9];
@@ -588,216 +1033,85 @@ function txnHTML(t,showDel=false){
     <div class="txn-emoji" style="background:${cat.color}18">${cat.emoji}</div>
     <div class="txn-info">
       <div class="txn-name">${t.desc||cat.label}</div>
-      <div class="txn-meta">
-        <span class="txn-type-pill pill-expense">expense</span>
-        <span>${cat.label}</span>·<span style="font-family:var(--mono);font-size:10px">${t.date}</span>
-      </div>
+      <div class="txn-meta">${cat.label} · <span style="font-family:var(--mono);font-size:10px">${t.date}</span></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <div class="txn-amt expense">${fmt(t.amount)}</div>
+      <div class="txn-amt" style="color:var(--red)">${fmt(t.amount)}</div>
       ${showDel?`<button class="del-btn" onclick="delTxn(${t.id})">🗑</button>`:''}
     </div>
   </div>`;
 }
 
-// ── History ──────────────────────────────────────────────────────────────────
-function renderHistory(){
-  document.getElementById('hist-month').textContent=monthLabel(currentMonth);
-  const txns=getTxns();
-  const emis=emisDueInMonth(currentMonth);
-
-  // Filters
-  const fp=document.getElementById('hist-filters');
-  fp.innerHTML=`<div class="filter-chip ${histFilter==='all'?'active':''}" onclick="setHF('all')">All</div>
-    <div class="filter-chip ${histFilter==='expense'?'active':''}" onclick="setHF('expense')">💸 Expenses</div>
-    <div class="filter-chip ${histFilter==='emi'?'active':''}" onclick="setHF('emi')">🔁 EMIs</div>`+
-    CATS.filter(c=>txns.some(t=>t.cat===c.id)).map(c=>
-      `<div class="filter-chip ${histFilter===c.id?'active':''}" onclick="setHF('${c.id}')">${c.emoji} ${c.label}</div>`
-    ).join('');
-
-  const hl=document.getElementById('hist-list');
-  let items=[];
-
-  if(histFilter!=='emi'){
-    const filtered=histFilter==='all'||histFilter==='expense'?txns:txns.filter(t=>t.cat===histFilter);
-    items=filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>txnHTML(t,true));
-  }
-  if(histFilter==='all'||histFilter==='emi'){
-    items=[...items,...emis.map(e=>`
-      <div class="txn-item">
-        <div class="txn-emoji" style="background:rgba(191,95,255,.15)">${EMI_CATS[e.cat]||'📦'}</div>
-        <div class="txn-info">
-          <div class="txn-name">${e.name}</div>
-          <div class="txn-meta">
-            <span class="txn-type-pill pill-emi">EMI</span>
-            <span>Due: ${e.dueday}th each month</span>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="txn-amt emi">${fmt(e.amount)}</div>
-          <button class="del-btn" onclick="delEMI(${e.id})">🗑</button>
-        </div>
-      </div>`)];
-  }
-
-  hl.innerHTML=items.length?items.join(''):'<div class="empty"><div class="empty-icon">🗒️</div><p>No entries found</p></div>';
-}
-
-function setHF(f){ histFilter=f; renderHistory(); }
 function delTxn(id){
   if(!confirm('Delete this transaction?')) return;
   saveTxns(getTxns().filter(t=>t.id!==id));
-  renderHistory(); renderDash(); toast('🗑 Deleted');
+  renderHistory(); renderDash(); toast('🗑 Deleted','var(--red)');
 }
 function delEMI(id){
-  if(!confirm('Delete this EMI permanently?')) return;
+  if(!confirm('Remove this EMI permanently?')) return;
   saveEMIs(getEMIs().filter(e=>e.id!==id));
-  renderHistory(); renderEMIs(); toast('🗑 EMI removed');
+  renderEMIs(); renderHistory(); renderDash(); toast('🗑 EMI removed','var(--red)');
 }
 
-// ── EMI Page ──────────────────────────────────────────────────────────────────
-function renderEMIs(){
-  const emis=getEMIs();
-  const el=document.getElementById('emi-list');
-  const sb=document.getElementById('emi-summary-box');
-
-  const [cy,cm]=currentMonth.split('-').map(Number);
-  const activeEmis=emis.filter(e=>{
-    const [sy,sm]=e.startMonth.split('-').map(Number);
-    const elapsed=(cy-sy)*12+(cm-sm);
-    return elapsed>=0&&elapsed<e.tenure;
-  });
-
-  const totalMonthly=activeEmis.reduce((s,e)=>s+e.amount,0);
-  const totalRemaining=emis.reduce((e,em)=>{
-    const [sy,sm]=em.startMonth.split('-').map(Number);
-    const elapsed=(cy-sy)*12+(cm-sm);
-    const left=Math.max(em.tenure-elapsed,0);
-    return e+left*em.amount;
-  },0);
-
-  sb.innerHTML=`
-    <div class="stat-grid" style="margin-bottom:12px">
-      <div class="stat-box purple">
-        <div class="stat-label">This Month</div>
-        <div class="stat-val purple">${fmt(totalMonthly)}</div>
-        <div class="stat-tag" style="background:rgba(191,95,255,.12);color:var(--purple)">${activeEmis.length} active</div>
-      </div>
-      <div class="stat-box amber">
-        <div class="stat-label">Total Remaining</div>
-        <div class="stat-val amber">${fmt(totalRemaining)}</div>
-        <div class="stat-tag tag-amber">all EMIs</div>
-      </div>
-    </div>`;
-
-  if(!emis.length){ el.innerHTML='<div class="empty"><div class="empty-icon">🔁</div><p>No EMIs added yet.<br>Tap + → EMI to add one.</p></div>'; return; }
-
-  el.innerHTML=emis.map(e=>{
-    const [sy,sm]=e.startMonth.split('-').map(Number);
-    const elapsed=Math.max((cy-sy)*12+(cm-sm),0);
-    const paidCount=Math.min(elapsed,e.tenure);
-    const left=e.tenure-paidCount;
-    const pct=(paidCount/e.tenure)*100;
-    const isActive=elapsed>=0&&elapsed<e.tenure;
-    return `<div class="emi-card ${!isActive?'opacity:0.5':''}">
-      <div class="emi-header">
-        <div>
-          <div class="emi-name">${EMI_CATS[e.cat]||'📦'} ${e.name}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Due ${e.dueday}${ordinal(e.dueday)} · Started ${monthLabel(e.startMonth)}</div>
-        </div>
-        <div style="text-align:right">
-          <div class="emi-amount">${fmt(e.amount)}/mo</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px">${isActive?`${left} months left`:'Completed ✓'}</div>
-        </div>
-      </div>
-      <div class="emi-meta">
-        <div class="emi-tag">Paid: <strong>${paidCount}/${e.tenure}</strong></div>
-        <div class="emi-tag">Remaining: <strong>${fmt(left*e.amount)}</strong></div>
-      </div>
-      <div class="emi-progress"><div class="emi-progress-fill" style="width:${pct}%"></div></div>
-      <div style="display:flex;justify-content:flex-end;margin-top:10px">
-        <button class="del-btn" onclick="delEMI(${e.id})" style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;color:var(--muted)">🗑 Remove</button>
-      </div>
-    </div>`;
-  }).join('');
+// ════════════════════════════════════════════════════════
+//  BUDGET PAGE
+// ════════════════════════════════════════════════════════
+function renderBudgetPage(){
+  const income=getIncome();
+  if(income) document.getElementById('income-input').value=income;
+  document.getElementById('share-url').textContent=window.location.href;
 }
 
-function ordinal(n){const s=['th','st','nd','rd'];const v=n%100;return s[(v-20)%10]||s[v]||s[0];}
+function saveIncome(){
+  const v=parseFloat(document.getElementById('income-input').value)||0;
+  save('sw_income',v);
+  toast('✓ Income saved!');
+  renderDash();
+}
 
-// ── Insights ──────────────────────────────────────────────────────────────────
-function renderInsights(){
-  document.getElementById('insight-month-label').textContent=monthLabel(currentMonth);
-  const txns   = getTxns();
-  const emis   = emisDueInMonth(currentMonth);
-  const totalExp = txns.reduce((s,t)=>s+t.amount,0);
-  const totalEMI = emis.reduce((s,e)=>s+e.amount,0);
-  const total    = totalExp+totalEMI;
-  const el=document.getElementById('insights-list');
-  if(!txns.length&&!emis.length){ el.innerHTML='<div class="empty"><div class="empty-icon">🤖</div><p>Add some expenses first and I\'ll give you smart insights!</p></div>'; return; }
-
-  const today=new Date();
-  const daysInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
-  const dayOfMonth=today.getDate();
-  const dailyRate=totalExp/(dayOfMonth||1);
-  const projected=dailyRate*daysInMonth+totalEMI;
-  const insights=[];
-
-  // Total committed
-  insights.push({type:'tip',icon:'💳',title:'Total committed this month',body:`Expenses: ${fmt(totalExp)} + EMIs: ${fmt(totalEMI)} = Total: ${fmt(total)}`});
-
-  // Projection
-  if(projected>total) insights.push({type:'warn',icon:'📈',title:'Month-end projection',body:`At ₹${Math.round(dailyRate).toLocaleString('en-IN')}/day you'll spend ~${fmt(Math.round(projected))} by end of month. That's ${fmt(Math.round(projected-total))} more than current.`});
-  else insights.push({type:'good',icon:'📊',title:'Month-end projection',body:`At your current pace, projected spend is ${fmt(Math.round(projected))} by end of month. You're pacing well.`});
-
-  // Biggest category
-  const catData=CATS.map(c=>({...c,spent:txns.filter(t=>t.cat===c.id).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
-  if(catData.length){
-    const top=catData[0];
-    const pct=((top.spent/totalExp)*100).toFixed(0);
-    insights.push({type:pct>40?'warn':'good',icon:top.emoji,title:`${top.label} is your top expense`,body:`${fmt(top.spent)} — ${pct}% of total expenses. ${pct>40?'Consider if this can be reduced.':'Looks balanced.'}`});
+// ════════════════════════════════════════════════════════
+//  SHARE
+// ════════════════════════════════════════════════════════
+function copyLink(){
+  navigator.clipboard.writeText(window.location.href).then(()=>toast('✓ Link copied!'));
+}
+function shareLink(){
+  if(navigator.share){
+    navigator.share({title:'SpendWise — Budget Tracker',text:'Track your expenses & EMIs with SpendWise!',url:window.location.href});
+  } else { copyLink(); }
+}
+function showQR(){
+  const s=document.getElementById('qr-section');
+  s.style.display=s.style.display==='none'?'block':'none';
+  if(s.style.display==='block'){
+    const url=encodeURIComponent(window.location.href);
+    document.getElementById('qr-wrap').innerHTML=
+      `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=1A1A26&color=8B85FF&data=${url}" style="border-radius:12px;width:180px;height:180px"/>`;
   }
-
-  // EMI burden
-  if(totalEMI>0){
-    const emiPct=((totalEMI/total)*100).toFixed(0);
-    insights.push({type:emiPct>40?'bad':'tip',icon:'🔁',title:`EMIs are ${emiPct}% of total spend`,body:`${fmt(totalEMI)}/month in fixed EMI commitments. ${emiPct>40?'High EMI burden — avoid taking new loans until some close.':'EMI load is manageable.'}`});
-
-    const allEmis=getEMIs();
-    const soonDone=allEmis.filter(e=>{
-      const [sy,sm]=e.startMonth.split('-').map(Number);
-      const [cy,cm]=currentMonth.split('-').map(Number);
-      const left=e.tenure-((cy-sy)*12+(cm-sm));
-      return left>0&&left<=3;
-    });
-    if(soonDone.length) insights.push({type:'good',icon:'🎉',title:`${soonDone.length} EMI${soonDone.length>1?'s':''} closing soon`,body:`${soonDone.map(e=>e.name).join(', ')} will close in the next 3 months. That'll free up ${fmt(soonDone.reduce((s,e)=>s+e.amount,0))}/month!`});
-  }
-
-  // Savings check
-  const saved=txns.filter(t=>t.cat==='savings').reduce((s,t)=>s+t.amount,0);
-  if(saved===0) insights.push({type:'warn',icon:'💰',title:'No savings recorded',body:`Try to set aside something each month. Even small amounts build up over time.`});
-  else insights.push({type:'good',icon:'💰',title:`Saved ${fmt(saved)} this month`,body:`Great habit! Try to increase your savings a little each month.`});
-
-  // Daily spend
-  if(dailyRate>2000) insights.push({type:'warn',icon:'⚡',title:`Daily spend: ${fmt(Math.round(dailyRate))}`,body:`Your daily average is quite high. Track what's driving it — small frequent spends add up quickly.`});
-
-  el.innerHTML=insights.map(i=>`
-    <div class="insight insight-${i.type}">
-      <div class="insight-head">${i.icon} ${i.title}</div>
-      <div class="insight-body">${i.body}</div>
-    </div>`).join('');
 }
 
-// ── Init ────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  DATA OPS
+// ════════════════════════════════════════════════════════
+function clearMonth(){
+  if(!confirm(`Clear all expenses for ${monthLabel(currentMonth)}?`)) return;
+  localStorage.removeItem(`sw_exp_${currentMonth}`);
+  renderDash(); toast('Month cleared','var(--amber)');
+}
+function clearAll(){
+  if(!confirm('⚠ Delete ALL data including EMIs and PIN? This cannot be undone.')) return;
+  localStorage.clear();
+  location.reload();
+}
+
+// ════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 }
-document.getElementById('dash-month').textContent=monthLabel(currentMonth);
-document.getElementById('hist-month').textContent=monthLabel(currentMonth);
-document.getElementById('exp-date').value=new Date().toISOString().split('T')[0];
-const td=new Date();
-document.getElementById('emi-start').value=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
-renderCatPills();
-renderDash();
+updateMonthLabels();
+initLock();
 </script>
 </body>
 </html>
