@@ -296,6 +296,12 @@ select option{background:var(--s2)}
     <div id="cat-bd"></div>
   </div>
 
+  <!-- Payment source breakdown -->
+  <div class="card">
+    <div class="ctitle">How You Paid</div>
+    <div id="source-breakdown"></div>
+  </div>
+
   <!-- Monthly report mini -->
   <div class="card">
     <div class="ctitle">Last 4 Months</div>
@@ -323,6 +329,23 @@ select option{background:var(--s2)}
     <div class="ir">
       <div class="fg"><label>Amount (₹)</label><input type="number" id="e-amt" placeholder="0" inputmode="decimal"/></div>
       <div class="fg"><label>Date</label><input type="date" id="e-date"/></div>
+    </div>
+    <div class="fg">
+      <label>Paid From</label>
+      <select id="e-source" onchange="updateSourceUI()">
+        <option value="cash">💵 Cash (untracked)</option>
+        <option value="bank">🏦 Savings / Bank Account</option>
+        <option value="cc">💳 Credit Card</option>
+        <option value="upi">📱 UPI (from bank)</option>
+      </select>
+    </div>
+    <div class="fg" id="e-bank-sel-wrap" style="display:none">
+      <label>Which Account / Wallet</label>
+      <select id="e-bank-acc"></select>
+    </div>
+    <div class="fg" id="e-cc-sel-wrap" style="display:none">
+      <label>Which Card</label>
+      <select id="e-cc-card"></select>
     </div>
     <button class="btn btn-p" onclick="addExpense()">Add Expense</button>
   </div>
@@ -446,13 +469,24 @@ select option{background:var(--s2)}
         <div class="fg"><label>Bank</label><input type="text" id="bacc-bank" placeholder="SBI, HDFC, ICICI..."/></div>
         <div class="fg"><label>Account Type</label>
           <select id="bacc-type">
-            <option value="savings">💰 Savings</option>
-            <option value="current">🏢 Current</option>
-            <option value="salary">💼 Salary</option>
+            <option value="savings">💰 Savings Account</option>
+            <option value="current">🏢 Current Account</option>
+            <option value="salary">💼 Salary Account</option>
+            <option value="cash">💵 Cash In Hand</option>
           </select>
         </div>
       </div>
-      <div class="fg"><label>Opening Balance (₹)</label><input type="number" id="bacc-bal" placeholder="Current balance" inputmode="decimal"/></div>
+      <div class="fg"><label>Opening / Current Balance (₹)</label><input type="number" id="bacc-bal" placeholder="Current balance" inputmode="decimal"/></div>
+      <div class="fg"><label>Low Balance Alert Threshold (₹)</label>
+        <select id="bacc-threshold">
+          <option value="0">No alert</option>
+          <option value="2000">Alert below ₹2,000</option>
+          <option value="5000">Alert below ₹5,000</option>
+          <option value="10000" selected>Alert below ₹10,000</option>
+          <option value="20000">Alert below ₹20,000</option>
+          <option value="50000">Alert below ₹50,000</option>
+        </select>
+      </div>
       <button class="btn btn-p" onclick="addBankAccount()">Add Account</button>
     </div>
     <div id="f-bank-txn" style="display:none">
@@ -718,7 +752,7 @@ function go(id,btn){
   if(id==='sav')renderSavings();
   if(id==='cc')renderCC();
   if(id==='report')renderReport();
-  if(id==='add'){renderCatPills();resetForms();}
+  if(id==='add'){resetForms();setTimeout(()=>{renderCatPills();updateSourceUI();},50);}
   updateMLbls();
 }
 function sm(d){
@@ -757,6 +791,11 @@ function resetForms(){
   const emiRem=document.getElementById('emi-remaining');
   if(emiRem) emiRem.value='';
 }
+function initAddPage(){
+  renderCatPills();
+  updateSourceUI();
+}
+
 function renderCatPills(){
   document.getElementById('cat-pills').innerHTML=CATS.map(c=>`
     <div class="cpill ${c.id===selCat?'on':''}" onclick="sc('${c.id}')"><span>${c.e}</span><span>${c.l}</span></div>`).join('');
@@ -769,18 +808,69 @@ function refreshCCSel(){
 }
 
 // ADD EXPENSE
+function updateSourceUI(){
+  const src=document.getElementById('e-source').value;
+  document.getElementById('e-bank-sel-wrap').style.display=(src==='bank'||src==='upi')?'block':'none';
+  document.getElementById('e-cc-sel-wrap').style.display=src==='cc'?'block':'none';
+  if(src==='bank'){
+    const sel=document.getElementById('e-bank-acc');
+    const accs=getBankAccounts();
+    sel.innerHTML=accs.length?accs.map(a=>`<option value="${a.id}">${a.name} (${a.bank})</option>`).join(''):'<option value="">No accounts</option>';
+  }
+  if(src==='cc'){
+    const sel=document.getElementById('e-cc-card');
+    const ccs=getCCs();
+    sel.innerHTML=ccs.length?ccs.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''):'<option value="">No cards</option>';
+  }
+}
+
 function addExpense(){
   const desc=document.getElementById('e-desc').value.trim();
   const amt=parseFloat(document.getElementById('e-amt').value);
   const date=document.getElementById('e-date').value;
+  const source=document.getElementById('e-source')?.value||'cash';
   if(!amt||amt<=0){toast('Enter valid amount','var(--red)');return;}
   if(!date){toast('Pick a date','var(--red)');return;}
   const mo=date.substring(0,7);
+  const txn={id:Date.now(),cat:selCat,desc,amount:amt,date,source};
+
+  if(source==='bank'||source==='upi'){
+    const accId=parseInt(document.getElementById('e-bank-acc')?.value);
+    if(accId){
+      txn.bankAccId=accId;
+      const acc=getBankAccounts().find(a=>a.id===accId);
+      txn.sourceLabel=(acc?acc.name:'Bank')+(source==='upi'?' (UPI)':'');
+      txn.source=source;
+      // Auto-debit from bank account
+      const btxns=getBankTxns(accId);
+      btxns.push({id:Date.now()+1,type:'debit',desc:(source==='upi'?'UPI: ':'')+( desc||selCat),amount:amt,date,autoFrom:'expense'});
+      setBankTxns(accId,btxns);
+      // Check balance after debit and alert if low
+      const allTxns2=getBankTxns(accId);
+      const newBal=getAccountBalance({...acc,id:accId});
+      if(acc.threshold&&newBal<=acc.threshold){
+        setTimeout(()=>toast(`⚠ ${acc.name} balance is now ${fmt(newBal)} — below your alert threshold!`,'var(--amber)'),500);
+      }
+    }
+  } else if(source==='cc'){
+    const cardId=parseInt(document.getElementById('e-cc-card')?.value);
+    if(cardId){
+      txn.ccCardId=cardId;
+      const card=getCCs().find(c=>c.id===cardId);
+      txn.sourceLabel=card?card.name:'CC';
+      // Auto-add as CC spend
+      const spends=getCCSpends(mo);
+      spends.push({id:Date.now()+1,cardId,desc:desc||selCat,amount:amt,date,autoFrom:'expense'});
+      setCCSpends(spends,mo);
+    }
+  }
+
   const txns=getTxns(mo);
-  txns.push({id:Date.now(),cat:selCat,desc,amount:amt,date});
+  txns.push(txn);
   saveTxns(txns,mo);
-  toast(`✓ ${fmt(amt)} added!`);
-  document.getElementById('e-amt').value='';document.getElementById('e-desc').value='';
+  toast(`✓ ${fmt(amt)} added${txn.sourceLabel?' ('+txn.sourceLabel+')':''}!`);
+  document.getElementById('e-amt').value='';
+  document.getElementById('e-desc').value='';
 }
 
 // ADD EMI
@@ -836,8 +926,40 @@ function addSavings(){
   const sip=parseFloat(document.getElementById('sav-sip').value)||0;
   if(!name||!amt){toast('Enter name and amount','var(--red)');return;}
   const savings=getSavings();
-  savings.push({id:Date.now(),name,type,amount:amt,rate,start,maturity:mat,sip});
+  const entry={id:Date.now(),name,type,amount:amt,rate,start,maturity:mat,sip,status:'active',maturedBalance:0};
+  savings.push(entry);
   setSavings(savings);toast(`✓ ${name} added!`);resetForms();
+}
+
+function markMatured(id){
+  const savings=getSavings();
+  const idx=savings.findIndex(s=>s.id===id);
+  if(idx<0)return;
+  const matVal=calcMaturity(savings[idx]);
+  savings[idx].status='matured';
+  savings[idx].maturedBalance=matVal;
+  savings[idx].maturedOn=today();
+  setSavings(savings);
+  renderSavings();
+  toast(`✓ Marked as matured — ${fmt(matVal)} credited!`);
+}
+
+function reinvest(id){
+  const savings=getSavings();
+  const s=savings.find(x=>x.id===id);
+  if(!s)return;
+  const matVal=calcMaturity(s);
+  // Pre-fill the add savings form with maturity value
+  go('add',document.querySelectorAll('.nb')[1]);
+  setAddType('sav');
+  setTimeout(()=>{
+    document.getElementById('sav-n').value=s.name+' (Reinvested)';
+    document.getElementById('sav-a').value=matVal;
+    document.getElementById('sav-r').value=s.rate||0;
+    document.getElementById('sav-start').value=today();
+    document.getElementById('sav-type').value=s.type;
+    toast('Pre-filled with maturity amount — update dates and save');
+  },200);
 }
 
 // ════════════════ DASHBOARD ════════════════
@@ -876,8 +998,8 @@ function renderDash(){
   document.getElementById('ds-avg').textContent=fmt(dayRate);
   document.getElementById('ds-proj').textContent=fmt(proj);
 
-  // Alerts
-  renderAlerts(totalSpent,totalEMI,income);
+  // Alerts — full smart check
+  checkReminders();
 
   // EMI due
   renderEMIDueCard(emis);
@@ -887,6 +1009,11 @@ function renderDash(){
 
   // Savings snapshot
   renderSavSnapshot();
+
+  // Payment source breakdown for dashboard
+  const bySource={cash:0,bank:0,cc:0,upi:0};
+  txns.forEach(t=>{ bySource[t.source||'cash']=(bySource[t.source||'cash']||0)+t.amount; });
+  bySource.cc+=getCCSpends().reduce((s,c)=>s+c.amount,0); // add pure CC spends too
 
   // Category
   const catData=CATS.map(c=>({...c,spent:txns.filter(t=>t.cat===c.id).reduce((s,t)=>s+t.amount,0)}))
@@ -911,41 +1038,7 @@ function renderDash(){
 
 function greet(){const h=new Date().getHours();return h<12?'Good morning 👋':h<17?'Good afternoon 👋':'Good evening 👋';}
 
-function renderAlerts(exp,emi,income){
-  const el=document.getElementById('dash-alerts');
-  let html='';
-  const ccs=getCCs();
-  const ccSpends=getCCSpends();
-  const today2=new Date().getDate();
-
-  // EMI due in 3 days
-  const emis=getEMIs().filter(e=>{
-    const left=monthsLeft(e,CM);
-    return left>0&&e.due>=today2&&e.due<=today2+5;
-  });
-  emis.forEach(e=>{
-    html+=`<div class="alert red"><div class="alert-icon">🔔</div><div class="alert-text"><strong>EMI Due in ${e.due-today2} days</strong>${e.name} — ${fmt(e.amount)} due on ${e.due}${ord(e.due)}</div></div>`;
-  });
-
-  // CC due soon
-  ccs.forEach(cc=>{
-    const used=ccSpends.filter(s=>s.cardId===cc.id).reduce((a,s)=>a+s.amount,0);
-    const daysTodue=cc.due-today2;
-    if(daysTodue>=0&&daysTodue<=5&&used>0){
-      html+=`<div class="alert amber"><div class="alert-icon">💳</div><div class="alert-text"><strong>${cc.name} bill due in ${daysTodue} days</strong>Pay ${fmt(used)} by ${cc.due}${ord(cc.due)} to avoid interest</div></div>`;
-    }
-    if(cc.limit&&used/cc.limit>0.8){
-      html+=`<div class="alert red"><div class="alert-icon">⚠️</div><div class="alert-text"><strong>${cc.name} usage ${Math.round(used/cc.limit*100)}%</strong>Reduce spending — high utilisation hurts credit score</div></div>`;
-    }
-  });
-
-  // Budget warning
-  if(income&&(exp+emi)/income>0.85){
-    html+=`<div class="alert amber"><div class="alert-icon">📊</div><div class="alert-text"><strong>Spending at ${Math.round((exp+emi)/income*100)}% of income</strong>Consider reducing discretionary expenses this month</div></div>`;
-  }
-
-  el.innerHTML=html;
-}
+// Alerts now handled by checkReminders() + renderDashAlerts()
 
 function renderEMIDueCard(emis){
   const el=document.getElementById('emi-due-card');
@@ -1158,17 +1251,10 @@ function renderSavings(){
   let totalMatVal=0;
   savings.forEach(sv=>{ totalMatVal+=calcMaturity(sv); });
 
-  document.getElementById('sav-top').innerHTML=`
-    <div class="sg">
-      <div class="sb"><div class="sl">Total Invested</div><div class="sv g">${fmt(total)}</div><div class="stag tg">${savings.length} investments</div></div>
-      <div class="sb"><div class="sl">Expected Returns</div><div class="sv gold">${fmt(totalMatVal)}</div><div class="stag tgold">at maturity</div></div>
-    </div>
-    <div class="sg">
-      <div class="sb"><div class="sl">Monthly SIP/RD</div><div class="sv t">${fmt(totalSIP)}</div><div class="stag tt">per month</div></div>
-      <div class="sb"><div class="sl">Projected Gain</div><div class="sv g">${fmt(totalMatVal-total)}</div><div class="stag tg">total returns</div></div>
-    </div>`;
-
   if(!savings.length){
+    document.getElementById('sav-top').innerHTML=`<div class="sg">
+      <div class="sb"><div class="sl">Total Invested</div><div class="sv g">₹0</div><div class="stag tg">0 investments</div></div>
+      <div class="sb"><div class="sl">Matured Balance</div><div class="sv gold">₹0</div><div class="stag tgold">—</div></div></div>`;
     document.getElementById('sav-list').innerHTML='<div class="empty"><div class="empty-ic">💰</div><p>No investments added yet.<br>Tap + → Savings to add FD, MF, Gold etc.</p></div>';
     return;
   }
@@ -1177,44 +1263,95 @@ function renderSavings(){
   const groups={};
   savings.forEach(s=>{groups[s.type]=(groups[s.type]||[]).concat(s);});
 
+  // Separate matured and active
+  const allActive=savings.filter(s=>s.status!=='matured');
+  const allMatured=savings.filter(s=>s.status==='matured');
+  const totalMaturedBal=allMatured.reduce((s,sv)=>s+(sv.maturedBalance||0),0);
+
+  // Update top stats with matured balance
+  const topEl=document.getElementById('sav-top');
+  if(topEl){
+    topEl.innerHTML=`
+    <div class="sg">
+      <div class="sb"><div class="sl">Active Invested</div><div class="sv g">${fmt(total)}</div><div class="stag tg">${allActive.length} active</div></div>
+      <div class="sb"><div class="sl">Expected at Maturity</div><div class="sv gold">${fmt(totalMatVal)}</div><div class="stag tgold">projected</div></div>
+    </div>
+    <div class="sg">
+      <div class="sb"><div class="sl">Monthly SIP/RD</div><div class="sv t">${fmt(totalSIP)}</div><div class="stag tt">per month</div></div>
+      <div class="sb"><div class="sl">Matured Balance</div><div class="sv g">${fmt(totalMaturedBal)}</div><div class="stag tg">${allMatured.length} matured</div></div>
+    </div>`;
+  }
+
   let html='';
+  // Show matured investments first if any
+  if(allMatured.length){
+    html+=`<div class="sec" style="color:var(--green)">🎉 Matured Investments</div>`;
+    allMatured.forEach(s=>{
+      const st=SAV_TYPES[s.type]||SAV_TYPES.other;
+      html+=`<div class="sav-card ${st.cls}" style="border-color:rgba(0,229,160,.35)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div class="sav-name">${s.name}</div>
+            <span class="sav-type" style="background:rgba(0,229,160,.15);color:var(--green)">✓ Matured on ${s.maturedOn||s.maturity||'—'}</span>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button onclick="reinvest(${s.id})" style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--green);border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:700">🔄 Reinvest</button>
+            <button onclick="delSav(${s.id})" style="border:1px solid rgba(255,64,96,.2);border-radius:7px;padding:4px 8px;color:var(--red);background:none;border-radius:7px;cursor:pointer;font-size:13px">🗑</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:var(--s3);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--muted)">${fmt(s.amount)}</div>
+            <div style="font-size:9px;color:var(--muted)">INVESTED</div>
+          </div>
+          <div style="background:rgba(0,229,160,.08);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--green)">${fmt(s.maturedBalance||0)}</div>
+            <div style="font-size:9px;color:var(--muted)">MATURED VALUE</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--green);font-weight:700;margin-top:8px">
+          Gain: ${fmt((s.maturedBalance||0)-s.amount)} (+${s.amount>0?(((s.maturedBalance||0)-s.amount)/s.amount*100).toFixed(1):0}%)
+        </div>
+      </div>`;
+    });
+  }
+
   Object.entries(groups).forEach(([type,items])=>{
+    const activeItems=items.filter(s=>s.status!=='matured');
+    if(!activeItems.length) return;
     const st=SAV_TYPES[type]||SAV_TYPES.other;
     html+=`<div class="sec">${st.e} ${st.l}</div>`;
-    items.forEach(s=>{
+    activeItems.forEach(s=>{
       const matVal=calcMaturity(s);
-      const invested=s.type==='rd'?(s.sip||0)*(() => {
-        if(!s.start||!s.maturity) return 1;
-        return Math.round((new Date(s.maturity)-new Date(s.start))/(30.44*24*3600*1000));
-      })() : s.amount;
-      let gainPct=invested>0?((matVal-invested)/invested*100):0;
+      const invested=s.type==='rd'?(s.sip||0)*(!s.start||!s.maturity?1:Math.round((new Date(s.maturity)-new Date(s.start))/(30.44*24*3600*1000))):s.amount;
+      const gainPct=invested>0?((matVal-invested)/invested*100):0;
       const today3=new Date();
       const matDate=s.maturity?new Date(s.maturity):null;
       const daysToMat=matDate?Math.round((matDate-today3)/(24*3600*1000)):null;
-      const isMature=daysToMat!==null&&daysToMat<=0;
+      const isMatureNow=daysToMat!==null&&daysToMat<=0&&s.status!=='matured';
       const isNearMat=daysToMat!==null&&daysToMat>0&&daysToMat<=30;
       html+=`<div class="sav-card ${st.cls}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
           <div>
             <div class="sav-name">${s.name}</div>
             <span class="sav-type" style="background:${st.c}18;color:${st.c}">${st.e} ${st.l}</span>
             ${s.rate?`<span style="font-size:10px;color:var(--muted);margin-left:6px">${s.rate}% p.a.</span>`:''}
           </div>
           <div style="display:flex;gap:5px">
-          <button onclick="editSav(${s.id})" style="background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer">✏️</button>
-          <button class="del-btn" onclick="delSav(${s.id})" style="border:1px solid rgba(255,64,96,.2);border-radius:7px;padding:4px 8px;color:var(--red)">🗑</button>
-        </div>
+            <button onclick="editSav(${s.id})" style="background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer">✏️</button>
+            <button onclick="delSav(${s.id})" style="border:1px solid rgba(255,64,96,.2);border-radius:7px;padding:4px 8px;color:var(--red);background:none;cursor:pointer;font-size:13px">🗑</button>
+          </div>
         </div>
         <div class="sav-stats">
-          <div class="sav-stat"><div class="sav-stat-v" style="color:var(--green)">${s.type==='rd'?fmt(s.sip||0)+'/mo':fmt(s.amount)}</div><div class="sav-stat-l">${s.type==='rd'?'Monthly RD':'Invested'}</div></div>
+          <div class="sav-stat"><div class="sav-stat-v" style="color:var(--green)">${s.type==='rd'?fmt(s.sip||0)+'/mo':fmt(s.amount)}</div><div class="sav-stat-l">${s.type==='rd'?'Monthly':'Invested'}</div></div>
           <div class="sav-stat"><div class="sav-stat-v" style="color:var(--gold)">${fmt(matVal)}</div><div class="sav-stat-l">At Maturity</div></div>
-          <div class="sav-stat"><div class="sav-stat-v" style="color:${gainPct>0?'var(--green)':'var(--muted)'}">${gainPct>0?'+'+gainPct.toFixed(1)+'%':'—'}</div><div class="sav-stat-l">Return %</div></div>
+          <div class="sav-stat"><div class="sav-stat-v" style="color:${gainPct>0?'var(--green)':'var(--muted)'}">${gainPct>0?'+'+gainPct.toFixed(1)+'%':'—'}</div><div class="sav-stat-l">Return</div></div>
         </div>
-        ${s.sip?`<div style="font-size:10px;color:var(--teal);margin-top:6px">Monthly SIP: ${fmt(s.sip)}</div>`:''}
-        ${s.maturity?`<div style="font-size:10px;margin-top:5px;color:${isMature?'var(--green)':isNearMat?'var(--amber)':'var(--muted)'}">
-          ${isMature?'🎉 Matured!':isNearMat?`⚡ Matures in ${daysToMat} days`:`Matures: ${new Date(s.maturity).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`}
+        ${s.sip?`<div style="font-size:10px;color:var(--teal);margin-top:5px">Monthly contribution: ${fmt(s.sip)}</div>`:''}
+        ${s.maturity?`<div style="font-size:10px;margin-top:6px;font-weight:600;color:${isMatureNow?'var(--green)':isNearMat?'var(--amber)':'var(--muted)'}">
+          ${isMatureNow?'🎉 Maturity date reached!':isNearMat?`⚡ Matures in ${daysToMat} days`:new Date(s.maturity).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
         </div>`:''}
-        ${isMature?`<div class="alert green" style="margin-top:8px"><div style="font-size:14px">🎉</div><div style="font-size:11px;font-weight:700;color:var(--green)">This investment has matured! Consider reinvesting ${fmt(matVal)}</div></div>`:''}
+        ${isMatureNow?`<button onclick="markMatured(${s.id})" style="width:100%;margin-top:8px;background:rgba(0,229,160,.12);border:1px solid rgba(0,229,160,.35);color:var(--green);border-radius:10px;padding:9px;font-size:12px;font-weight:800;cursor:pointer">✅ Mark as Matured — Receive ${fmt(matVal)}</button>`:''}
       </div>`;
     });
   });
@@ -1615,6 +1752,7 @@ function modalSave(){
       bank:document.getElementById('me-bank-b').value.trim(),
       openingBalance:parseFloat(document.getElementById('me-bank-bal').value)||0,
       type:document.getElementById('me-bank-type').value,
+      threshold:parseInt(document.getElementById('me-bank-thresh').value)||0,
     };
     setBankAccounts(accs);closeModal();renderBankAccounts();toast('✓ Account updated!');
   } else if(modalType==='cc-spend'){
@@ -1727,21 +1865,89 @@ function saveReminder(){
   toast(`✓ Reminder set — ${days} days before due!`);
 }
 
-// Check reminders on load
+// ════════════════ SMART ALERT SYSTEM ════════════════
 function checkReminders(){
-  const rems=getReminders();
   const today5=new Date().getDate();
   const alerts=[];
+
+  // 1. Custom reminders
+  const rems=getReminders();
   rems.forEach(r=>{
-    const daysTodue=r.dueDay-today5;
-    if(daysTodue>=0&&daysTodue<=r.daysBefore){
-      alerts.push({name:r.name,amount:r.amount,daysTodue,note:r.note});
+    const d=r.dueDay-today5;
+    if(d>=0&&d<=r.daysBefore){
+      alerts.push({type:'reminder',icon:'🔔',msg:`${r.name}: ${fmt(r.amount)} due in ${d} day${d!==1?'s':''}${r.note?' — '+r.note:''}`,col:'var(--amber)'});
     }
   });
+
+  // 2. Low bank balance alerts
+  const accs=getBankAccounts();
+  accs.forEach(acc=>{
+    if(!acc.threshold) return;
+    const bal=getAccountBalance(acc);
+    if(bal<=acc.threshold){
+      const urgency=bal<=2000?'var(--red)':bal<=5000?'var(--red)':'var(--amber)';
+      const icon=bal<=2000?'🚨':bal<=5000?'⚠️':'⚠️';
+      alerts.push({type:'lowbal',icon,msg:`${acc.name}: Balance ${fmt(bal)} is below threshold (${fmt(acc.threshold)})`,col:urgency});
+    }
+  });
+
+  // 3. EMI due soon + insufficient balance warning
+  const emis=getEMIs();
+  emis.forEach(e=>{
+    const left=monthsLeft(e,CM);
+    if(left<=0) return;
+    const d=e.due-today5;
+    if(d>=0&&d<=5){
+      // Check if any account has enough balance
+      const totalBal=accs.reduce((s,a)=>s+getAccountBalance(a),0);
+      if(totalBal>0&&totalBal<e.amount){
+        alerts.push({type:'emi-funds',icon:'🚨',msg:`EMI "${e.name}" (${fmt(e.amount)}) due in ${d} day${d!==1?'s':''}. Total balance ${fmt(totalBal)} may be insufficient!`,col:'var(--red)'});
+      } else if(d<=3){
+        alerts.push({type:'emi-due',icon:'🔔',msg:`"${e.name}" EMI of ${fmt(e.amount)} due in ${d} day${d!==1?'s':''}`,col:'var(--amber)'});
+      }
+    }
+  });
+
+  // 4. CC due soon + outstanding
+  const ccs=getCCs();
+  ccs.forEach(cc=>{
+    const spends=getCCSpends();
+    const spend=spends.filter(s=>s.cardId===cc.id).reduce((a,s)=>a+s.amount,0);
+    const out=(getCCOutstanding()[cc.id]||{})[CM]||0;
+    const totalDue=out+spend;
+    if(!totalDue) return;
+    const paid=getTotalPaidForCard(cc.id,CM);
+    const pending=Math.max(totalDue-paid,0);
+    if(!pending) return;
+    const d=cc.due-today5;
+    if(d>=0&&d<=5){
+      alerts.push({type:'cc-due',icon:'💳',msg:`${cc.name} bill ${fmt(pending)} pending — due in ${d} day${d!==1?'s':''}`,col:d<=2?'var(--red)':'var(--amber)'});
+    }
+  });
+
   if(alerts.length){
-    const msg=alerts.map(a=>`${a.name}: ${fmt(a.amount)} due in ${a.daysTodue} day${a.daysTodue!==1?'s':''}`).join(' | ');
-    setTimeout(()=>toast('🔔 '+msg,'var(--amber)'),1000);
+    // Show first alert immediately, queue rest
+    const renderAlertToasts=()=>{
+      alerts.slice(0,3).forEach((a,i)=>{
+        setTimeout(()=>toast(`${a.icon} ${a.msg}`,a.col),i*3000);
+      });
+    };
+    setTimeout(renderAlertToasts,800);
   }
+
+  // Also update the dashboard alert banner
+  renderDashAlerts(alerts);
+}
+
+function renderDashAlerts(alerts){
+  const el=document.getElementById('dash-alerts');
+  if(!el) return;
+  if(!alerts||!alerts.length){el.innerHTML='';return;}
+  el.innerHTML=alerts.map(a=>`
+    <div class="alert ${a.col.includes('red')?'red':'amber'}" style="margin-bottom:6px">
+      <div class="alert-icon">${a.icon}</div>
+      <div class="alert-text">${a.msg}</div>
+    </div>`).join('');
 }
 
 
@@ -1842,9 +2048,10 @@ function addBankAccount(){
   const bank=document.getElementById('bacc-bank').value.trim();
   const type=document.getElementById('bacc-type').value;
   const bal=parseFloat(document.getElementById('bacc-bal').value)||0;
+  const threshold=parseInt(document.getElementById('bacc-threshold').value)||0;
   if(!name){toast('Enter account name','var(--red)');return;}
   const accs=getBankAccounts();
-  accs.push({id:Date.now(),name,bank,type,openingBalance:bal});
+  accs.push({id:Date.now(),name,bank,type,openingBalance:bal,threshold});
   setBankAccounts(accs);
   toast(`✓ ${name} added!`);
   document.getElementById('bacc-name').value='';
@@ -1898,7 +2105,9 @@ function renderBankAccounts(){
     const thisMonthIn=thisMonthTxns.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
     const thisMonthOut=thisMonthTxns.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
     const typeIcons={savings:'💰',current:'🏢',salary:'💼'};
-    const recentTxns=[...txns].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+    // Include auto-debits from expenses tagged to this account
+    const allTxns=[...txns];
+    const recentTxns=[...allTxns].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
     return `<div class="card glow-green" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
@@ -1906,8 +2115,9 @@ function renderBankAccounts(){
           <div style="font-size:11px;color:var(--muted);margin-top:2px">${acc.bank} · ${acc.type}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${bal>=0?'var(--green)':'var(--red)'}">${fmt(bal)}</div>
+          <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${bal<=0?'var(--red)':acc.threshold&&bal<=acc.threshold?'var(--amber)':'var(--green)'}">${fmt(bal)}</div>
           <div style="font-size:10px;color:var(--muted)">current balance</div>
+          ${acc.threshold&&bal<=acc.threshold?`<div style="font-size:10px;font-weight:800;color:${bal<=2000?'var(--red)':bal<=5000?'var(--red)':'var(--amber)'};margin-top:2px">${bal<=2000?'🚨 CRITICAL':bal<=5000?'⚠ VERY LOW':'⚠ LOW'}</div>`:''}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
@@ -1920,6 +2130,14 @@ function renderBankAccounts(){
           <div style="font-size:9px;color:var(--muted)">OUT THIS MONTH</div>
         </div>
       </div>
+      ${acc.threshold?`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-bottom:4px">
+          <span style="color:var(--muted)">Balance vs Safe Threshold (${fmt(acc.threshold)})</span>
+          <span style="color:${bal<=acc.threshold?'var(--red)':'var(--green)'}">${bal<=acc.threshold?'Below threshold':'Safe'}</span>
+        </div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(bal/acc.threshold*100,100).toFixed(0)}%;background:${bal<=2000?'var(--red)':bal<=acc.threshold?'var(--amber)':'var(--green)'}"></div></div>
+        ${bal<=acc.threshold?`<div style="font-size:10px;color:var(--red);font-weight:700;margin-top:5px">⚠ Add funds — EMIs and bills may bounce if balance stays low</div>`:''}
+      </div>`:''}
       ${recentTxns.length?`<div style="border-top:1px solid var(--border);padding-top:8px">
         <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Recent Transactions</div>
         ${recentTxns.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">
@@ -1959,17 +2177,28 @@ function editBankAccount(id){
   if(!acc)return;
   modalType='bank'; modalItem=acc;
   modalDelFn=()=>{setBankAccounts(getBankAccounts().filter(a=>a.id!==id));localStorage.removeItem(`wo_bank_${id}`);closeModal();renderBankAccounts();toast('🗑 Removed','var(--red)');};
-  document.getElementById('modal-title').textContent='✏️ Edit Bank Account';
+  document.getElementById('modal-title').textContent='✏️ Edit Account';
   document.getElementById('modal-body').innerHTML=`
     <div class="fg"><label>Account Name</label><input id="me-bank-n" value="${acc.name}"/></div>
-    <div class="fg"><label>Bank</label><input id="me-bank-b" value="${acc.bank||''}"/></div>
+    <div class="fg"><label>Bank / Description</label><input id="me-bank-b" value="${acc.bank||''}"/></div>
     <div class="ir">
-      <div class="fg"><label>Opening Balance (₹)</label><input type="number" id="me-bank-bal" value="${acc.openingBalance||0}" inputmode="decimal"/></div>
+      <div class="fg"><label>Current Balance (₹)</label><input type="number" id="me-bank-bal" value="${acc.openingBalance||0}" inputmode="decimal"/></div>
       <div class="fg"><label>Type</label><select id="me-bank-type">
         <option value="savings" ${acc.type==='savings'?'selected':''}>Savings</option>
         <option value="current" ${acc.type==='current'?'selected':''}>Current</option>
         <option value="salary" ${acc.type==='salary'?'selected':''}>Salary</option>
+        <option value="cash" ${acc.type==='cash'?'selected':''}>Cash In Hand</option>
       </select></div>
+    </div>
+    <div class="fg"><label>Low Balance Alert Threshold</label>
+      <select id="me-bank-thresh">
+        <option value="0" ${!acc.threshold?'selected':''}>No alert</option>
+        <option value="2000" ${acc.threshold===2000?'selected':''}>Below ₹2,000</option>
+        <option value="5000" ${acc.threshold===5000?'selected':''}>Below ₹5,000</option>
+        <option value="10000" ${acc.threshold===10000?'selected':''}>Below ₹10,000</option>
+        <option value="20000" ${acc.threshold===20000?'selected':''}>Below ₹20,000</option>
+        <option value="50000" ${acc.threshold===50000?'selected':''}>Below ₹50,000</option>
+      </select>
     </div>`;
   document.getElementById('edit-modal').style.display='block';
 }
