@@ -242,10 +242,10 @@ select option{background:var(--s2)}
   <div class="lock-sub" id="ls">Enter PIN to access your finances</div>
   <div class="dots"><div class="dot" id="d0"></div><div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div></div>
   <div class="pad">
-    <button class="pb" onclick="pp('1')">1</button><button class="pb" onclick="pp('2')">2</button><button class="pb" onclick="pp('3')">3</button>
-    <button class="pb" onclick="pp('4')">4</button><button class="pb" onclick="pp('5')">5</button><button class="pb" onclick="pp('6')">6</button>
-    <button class="pb" onclick="pp('7')">7</button><button class="pb" onclick="pp('8')">8</button><button class="pb" onclick="pp('9')">9</button>
-    <button class="pb z" onclick="pp('0')">0</button><button class="pb del" onclick="pd()">⌫</button>
+    <button class="pb" onclick="pinPress('1')">1</button><button class="pb" onclick="pinPress('2')">2</button><button class="pb" onclick="pinPress('3')">3</button>
+    <button class="pb" onclick="pinPress('4')">4</button><button class="pb" onclick="pinPress('5')">5</button><button class="pb" onclick="pinPress('6')">6</button>
+    <button class="pb" onclick="pinPress('7')">7</button><button class="pb" onclick="pinPress('8')">8</button><button class="pb" onclick="pinPress('9')">9</button>
+    <button class="pb z" onclick="pinPress('0')">0</button><button class="pb del" onclick="pinDel()">⌫</button>
   </div>
   <div class="lock-err" id="lerr"></div>
 </div>
@@ -367,11 +367,12 @@ select option{background:var(--s2)}
   <div id="add-live-summary" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none"></div>
 
   <div class="ttog" style="flex-wrap:wrap;gap:4px">
-    <button class="ttbtn on" id="tadd-exp" onclick="setAddType('exp')" style="flex:1;min-width:80px">💸 Expense</button>
-    <button class="ttbtn" id="tadd-emi" onclick="setAddType('emi')" style="flex:1;min-width:80px">🔁 EMI</button>
-    <button class="ttbtn" id="tadd-cc" onclick="setAddType('cc')" style="flex:1;min-width:80px">💳 CC</button>
-    <button class="ttbtn" id="tadd-sav" onclick="setAddType('sav')" style="flex:1;min-width:80px">💰 Savings</button>
-    <button class="ttbtn" id="tadd-bank" onclick="setAddType('bank')" style="flex:1;min-width:80px">🏦 Bank</button>
+    <button class="ttbtn on" id="tadd-exp" onclick="setAddType('exp')" style="flex:1;min-width:72px">💸 Expense</button>
+    <button class="ttbtn" id="tadd-income" onclick="setAddType('income')" style="flex:1;min-width:72px">💰 Income</button>
+    <button class="ttbtn" id="tadd-emi" onclick="setAddType('emi')" style="flex:1;min-width:72px">🔁 EMI</button>
+    <button class="ttbtn" id="tadd-cc" onclick="setAddType('cc')" style="flex:1;min-width:72px">💳 CC</button>
+    <button class="ttbtn" id="tadd-sav" onclick="setAddType('sav')" style="flex:1;min-width:72px">💰 Save</button>
+    <button class="ttbtn" id="tadd-bank" onclick="setAddType('bank')" style="flex:1;min-width:72px">🏦 Bank</button>
   </div>
 
   <!-- EXPENSE -->
@@ -402,6 +403,38 @@ select option{background:var(--s2)}
       <select id="e-cc-card"></select>
     </div>
     <button class="btn btn-p" onclick="addExpense()">Add Expense</button>
+  </div>
+
+  <!-- INCOME FORM -->
+  <div id="f-income" style="display:none">
+    <div class="fg"><label>Income Source</label>
+      <select id="inc-source">
+        <option value="salary">💼 Monthly Salary</option>
+        <option value="freelance">💻 Freelance / Contract</option>
+        <option value="bonus">🎁 Bonus / Incentive</option>
+        <option value="rental">🏠 Rental Income</option>
+        <option value="interest">🏦 Interest / FD Returns</option>
+        <option value="dividend">📈 Dividends / Investments</option>
+        <option value="gift">🎀 Gift / Family</option>
+        <option value="refund">↩ Refund / Cashback</option>
+        <option value="other">📦 Other</option>
+      </select>
+    </div>
+    <div class="fg"><label>Description</label>
+      <input type="text" id="inc-desc" placeholder="e.g. April salary, Freelance project..."/></div>
+    <div class="ir">
+      <div class="fg"><label>Amount (₹)</label>
+        <input type="number" id="inc-amt" placeholder="0" inputmode="decimal"/></div>
+      <div class="fg"><label>Date</label>
+        <input type="date" id="inc-date"/></div>
+    </div>
+    <div class="fg"><label>Credited To</label>
+      <select id="inc-bank-sel"></select>
+    </div>
+    <div style="background:var(--s3);border-radius:10px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--muted)">
+      This will be recorded as income for the month and credited to the selected account automatically.
+    </div>
+    <button class="btn btn-p" onclick="addIncome()">Record Income</button>
   </div>
 
   <!-- EMI -->
@@ -677,6 +710,11 @@ const CATS=[
   {id:'other',l:'Other',e:'📦',c:'#94A3B8'},
 ];
 const EMJ={home:'🏠',car:'🚗',personal:'💳',education:'📚',device:'📱',credit:'💳',other:'📦'};
+const INC_SOURCES_GLOBAL = {
+  salary:'💼 Salary', freelance:'💻 Freelance', bonus:'🎁 Bonus',
+  rental:'🏠 Rental', interest:'🏦 Interest', dividend:'📈 Dividend',
+  gift:'🎀 Gift', refund:'↩ Refund', other:'📦 Other'
+};
 const SAV_TYPES={fd:{l:'Fixed Deposit',e:'🏦',c:'var(--gold)',cls:'fd'},rd:{l:'Recurring Deposit',e:'📅',c:'var(--teal)',cls:'rd'},mf:{l:'Mutual Fund',e:'📈',c:'var(--green)',cls:'mf'},gold:{l:'Gold',e:'🥇',c:'var(--amber)',cls:'gold'},ppf:{l:'PPF/NPS',e:'🏛️',c:'var(--blue2)',cls:'ppf'},stock:{l:'Stocks',e:'📊',c:'var(--green)',cls:'mf'},crypto:{l:'Crypto',e:'🪙',c:'var(--amber)',cls:'gold'},insurance:{l:'Insurance',e:'🛡️',c:'var(--purple)',cls:'ppf'},other:{l:'Other',e:'💼',c:'var(--muted)',cls:'other'}};
 
 // ════════════════ STATE ════════════════
@@ -711,14 +749,7 @@ function refreshAll(){
   // Always keep dashboard fresh in background (for badge counts etc)
 }
 
-// Wrap localStorage save to trigger refresh
-const _S = S;
-function S(k,v){
-  _S(k,v);
-  // Debounce refresh so rapid saves don't cause multiple renders
-  clearTimeout(_refreshTimer);
-  _refreshTimer = setTimeout(refreshAll, 80);
-}
+// Storage wired to refreshAll via direct calls
 
 const getIncome=(m)=>{
   const mo=m||CM;
@@ -795,8 +826,8 @@ function updateLock(){
   pinBuf='';updateDots();
 }
 function updateDots(){for(let i=0;i<4;i++)document.getElementById('d'+i).classList.toggle('on',i<pinBuf.length);}
-function pp(d){if(pinBuf.length>=4)return;pinBuf+=d;updateDots();if(pinBuf.length===4)setTimeout(procPin,150);}
-function pd(){pinBuf=pinBuf.slice(0,-1);updateDots();}
+function pinPress(d){if(pinBuf.length>=4)return;pinBuf+=d;updateDots();if(pinBuf.length===4)setTimeout(procPin,150);}
+function pinDel(){pinBuf=pinBuf.slice(0,-1);updateDots();}
 function procPin(){
   const err=document.getElementById('lerr');
   if(pinMode==='setup'){pinTmp=pinBuf;pinMode='setup2';updateLock();}
@@ -834,7 +865,7 @@ function go(id,btn){
   if(id==='sav')    savTab==='bank'?renderBankAccounts():renderSavings();
   if(id==='cc')     renderCC();
   if(id==='report') renderReport();
-  if(id==='add')    {resetForms();setTimeout(()=>{renderCatPills();updateSourceUI();renderAddSummary();},50);}
+  if(id==='add')    {resetForms();setTimeout(()=>{renderCatPills();updateSourceUI();refreshIncSel();renderAddSummary();},50);}
   updateMLbls();
 }
 function sm(d){
@@ -855,7 +886,7 @@ function updateMLbls(){
 // ════════════════ ADD FORMS ════════════════
 function setAddType(t){
   addType=t;
-  ['exp','emi','cc','sav','bank'].forEach(x=>{
+  ['exp','income','emi','cc','sav','bank'].forEach(x=>{
     document.getElementById('f-'+x).style.display=x===t?'block':'none';
     document.getElementById('tadd-'+x).classList.toggle('on',x===t);
   });
@@ -889,14 +920,17 @@ function renderAddSummary(){
   const emis=emisDue(CM);
   const ccs=getCCSpends();
   const bankAccs=getBankAccounts();
+  const incEntries=getIncomeEntries();
   const exp=txns.reduce((s,t)=>s+t.amount,0);
   const emi=emis.reduce((s,e)=>s+e.amount,0);
   const cc=ccs.reduce((s,c)=>s+c.amount,0);
   const totalBal=bankAccs.reduce((s,a)=>s+getAccountBalance(a),0);
+  const totalInc=incEntries.reduce((s,e)=>s+e.amount,0)||getIncome(CM);
   const items=[
+    {l:'Income',v:fmt(totalInc),c:'var(--green)'},
     {l:'Spent',v:fmt(exp+cc),c:'var(--red)'},
     {l:'EMIs',v:fmt(emi),c:'var(--purple)'},
-    {l:'Balance',v:fmt(totalBal),c:'var(--green)'},
+    {l:'Balance',v:fmt(totalBal),c:'var(--teal)'},
   ];
   el.innerHTML=items.map(i=>`<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:7px 12px;flex-shrink:0;text-align:center">
     <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${i.c}">${i.v}</div>
@@ -1132,7 +1166,10 @@ function renderDash(){
   const allEmis  = getEMIs();
   const activeEmis = emisDue(CM);
   const ccSpends = getCCSpends();
-  const income   = getIncome();
+  const income   = getIncome(CM);
+  const incomeEntries = getIncomeEntries();
+  const totalIncomeFromEntries = incomeEntries.reduce((s,e)=>s+e.amount,0);
+  const effectiveIncome = totalIncomeFromEntries || income;
   const savings  = getSavings();
   const bankAccs = getBankAccounts();
 
@@ -1151,7 +1188,7 @@ function renderDash(){
   const totalBankBal = bankAccs.reduce((s,a)=>s+getAccountBalance(a), 0);
 
   // Net position = income - outflow - savings
-  const netPos = income > 0 ? income - totalOutflow - savThisMonth : totalBankBal;
+  const netPos = effectiveIncome > 0 ? effectiveIncome - totalOutflow - savThisMonth : totalBankBal;
 
   // EMI lifetime stats
   const emiPaidTotal = allEmis.reduce((s,e) => {
@@ -1166,9 +1203,9 @@ function renderDash(){
   // ── Hero card ─────────────────────────────────────────────────────────────
   document.getElementById('hw-net').textContent = fmt(Math.abs(netPos)).replace('₹','');
   const netSub = document.getElementById('hw-net-sub');
-  if(netSub) netSub.textContent = netPos < 0 ? '⚠ Outflow exceeds income' : income > 0 ? `₹${fmt(income)} income - ₹${fmt(totalOutflow)} outflow` : 'Total bank balance';
+  if(netSub) netSub.textContent = netPos < 0 ? '⚠ Outflow exceeds income' : effectiveIncome > 0 ? `${fmt(effectiveIncome)} in − ${fmt(totalOutflow)} out` : 'Set income for better tracking';
   document.getElementById('hw-bankbal').textContent = fmt(totalBankBal);
-  document.getElementById('hw-inc').textContent   = income ? fmt(income) : '—';
+  document.getElementById('hw-inc').textContent   = effectiveIncome ? fmt(effectiveIncome) : '—';
   document.getElementById('hw-exp').textContent   = fmt(totalSpent);
   document.getElementById('hw-emi').textContent   = fmt(totalEMI);
   document.getElementById('hw-sav').textContent   = fmt(savThisMonth);
@@ -1296,12 +1333,12 @@ function renderDash(){
   // ── Money flow ────────────────────────────────────────────────────────────
   const mfEl = document.getElementById('money-flow');
   if(mfEl) {
-    const inflow  = (income || 0) + bankAccs.reduce((s,a)=>{
+    const inflow  = (effectiveIncome || 0) + bankAccs.reduce((s,a)=>{
       return s + getBankTxns(a.id).filter(t=>t.date&&t.date.substring(0,7)===CM&&t.type==='credit').reduce((x,t)=>x+t.amount,0);
     },0);
     const outflow = totalSpent + totalEMI + savThisMonth;
     const rows = [
-      income ? {label:'💼 Income / Salary', val: income, type:'in'} : null,
+      ...(incomeEntries.length>0 ? incomeEntries.map(e=>({label:INC_SOURCES_GLOBAL[e.source]||'💰 Income', val:e.amount, type:'in'})) : [effectiveIncome ? {label:'💼 Income', val:effectiveIncome, type:'in'} : null]),
       ...bankAccs.map(a => {
         const aBankIn = getBankTxns(a.id).filter(t=>t.date&&t.date.substring(0,7)===CM&&t.type==='credit'&&!t.autoFrom).reduce((x,t)=>x+t.amount,0);
         return aBankIn > 0 ? {label:`🏦 ${a.name} credits`, val: aBankIn, type:'in'} : null;
@@ -1841,9 +1878,143 @@ function delCC(id){
 }
 
 // ════════════════ REPORT PAGE ════════════════
+// ════════════════ REPORT PAGE ════════════════
+function getWeeklyBreakdown(month){
+  const txns = getTxns(month);
+  const weeks = [{label:'Week 1 (1-7)',days:[1,7]},{label:'Week 2 (8-14)',days:[8,14]},{label:'Week 3 (15-21)',days:[15,21]},{label:'Week 4 (22+)',days:[22,31]}];
+  return weeks.map(w=>{
+    const wTxns = txns.filter(t=>{ const d=new Date(t.date).getDate(); return d>=w.days[0]&&d<=w.days[1]; });
+    return {...w, spent:wTxns.reduce((s,t)=>s+t.amount,0), count:wTxns.length};
+  });
+}
+
+function getAnnualSummary(){
+  const yr = CM.split('-')[0];
+  const months=[];
+  for(let m=1;m<=12;m++){
+    const mo=`${yr}-${String(m).padStart(2,'0')}`;
+    const exp=getTxns(mo).reduce((s,t)=>s+t.amount,0);
+    const emi=emisDue(mo).reduce((s,e)=>s+e.amount,0);
+    const cc=getCCSpends(mo).reduce((s,c)=>s+c.amount,0);
+    const inc=getIncome(mo);
+    const incEntries=getIncomeEntries(mo).reduce((s,e)=>s+e.amount,0);
+    months.push({mo,exp,emi,cc,inc:incEntries||inc,total:exp+cc+emi});
+  }
+  return months;
+}
+
 function renderReport(){
   incomeMonth=CM;
   refreshIncomeUI();
+
+  // ── Annual summary ─────────────────────────────────────────────────────
+  const annual = getAnnualSummary();
+  const annualTotal = annual.reduce((s,m)=>s+m.total,0);
+  const annualInc   = annual.reduce((s,m)=>s+m.inc,0);
+  const annualEMI   = annual.reduce((s,m)=>s+m.emi,0);
+  const annualExp   = annual.reduce((s,m)=>s+m.exp+m.cc,0);
+
+  // ── Weekly breakdown current month ────────────────────────────────────
+  const weeks = getWeeklyBreakdown(CM);
+  const weeklyMax = Math.max(...weeks.map(w=>w.spent),1);
+
+  // ── Savings planner ───────────────────────────────────────────────────
+  const income2 = getIncome(CM);
+  const incEntries = getIncomeEntries().reduce((s,e)=>s+e.amount,0);
+  const effectInc = incEntries || income2;
+  const totalEMI2 = emisDue(CM).reduce((s,e)=>s+e.amount,0);
+  const totalCC2  = getCCSpends().reduce((s,c)=>s+c.amount,0);
+  const totalExp2 = getTxns().reduce((s,t)=>s+t.amount,0);
+  const mandatorySpend = totalEMI2 + (getTxns().filter(t=>['bills','health'].includes(t.cat)).reduce((s,t)=>s+t.amount,0));
+  const discretionary = (totalExp2 + totalCC2) - mandatorySpend;
+  const leftAfterMandatory = effectInc - mandatorySpend;
+  const leftAfterAll = effectInc - totalExp2 - totalCC2 - totalEMI2;
+  const savingsGoal20 = effectInc * 0.2;
+  const savingsGoal30 = effectInc * 0.3;
+
+  const repTopEl = document.getElementById('report-top');
+  if(repTopEl) repTopEl.innerHTML = `
+    <!-- Annual snapshot -->
+    <div class="hero" style="margin-bottom:10px">
+      <div class="hero-lbl">${CM.split('-')[0]} Annual Snapshot</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div><div style="font-size:10px;color:var(--muted)">Total Income</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--green)">${fmt(annualInc)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">Total Outflow</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(annualTotal)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">Total EMIs Paid</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(annualEMI)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">Day-to-Day Spend</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--amber)">${fmt(annualExp)}</div></div>
+      </div>
+    </div>
+
+    <!-- Savings Planner -->
+    ${effectInc?`<div class="card glow-green" style="margin-bottom:10px">
+      <div class="ctitle" style="color:var(--green)">💡 Savings Planner — ${mLong(CM)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:rgba(255,64,96,.08);border-radius:10px;padding:10px;border:1px solid rgba(255,64,96,.15)">
+          <div style="font-size:9px;color:var(--muted);font-weight:700;margin-bottom:4px">MANDATORY OUTFLOW</div>
+          <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(mandatorySpend)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">EMIs + Bills + Health</div>
+        </div>
+        <div style="background:rgba(91,95,255,.08);border-radius:10px;padding:10px;border:1px solid rgba(91,95,255,.15)">
+          <div style="font-size:9px;color:var(--muted);font-weight:700;margin-bottom:4px">DISCRETIONARY</div>
+          <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--blue2)">${fmt(discretionary)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">Food, Shopping, Fun etc.</div>
+        </div>
+      </div>
+      <div style="background:var(--s3);border-radius:10px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px">
+          <span>Left after mandatory</span><span style="color:${leftAfterMandatory>=0?'var(--green)':'var(--red)'};font-family:var(--mono)">${fmt(leftAfterMandatory)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700">
+          <span>Left after everything</span><span style="color:${leftAfterAll>=0?'var(--green)':'var(--red)'};font-family:var(--mono)">${fmt(leftAfterAll)}</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px">SAVINGS TARGETS</div>
+      ${[{pct:20,val:savingsGoal20,label:'Conservative (20%)'},{pct:30,val:savingsGoal30,label:'Recommended (30%)'},{pct:50,val:effectInc*0.5,label:'Aggressive (50%)'}].map(g=>{
+        const feasible=leftAfterAll>=g.val;
+        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="font-size:11px;flex:1">${g.label}</div>
+          <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${feasible?'var(--green)':'var(--red)'}">${fmt(g.val)}</div>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${feasible?'rgba(0,229,160,.12)':'rgba(255,64,96,.1)'};color:${feasible?'var(--green)':'var(--red)'}">${feasible?'✓ Feasible':'Short by '+fmt(g.val-leftAfterAll)}</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <!-- Weekly breakdown -->
+    <div class="card" style="margin-bottom:10px">
+      <div class="ctitle">Weekly Spending — ${mLong(CM)}</div>
+      ${weeks.map(w=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:10px;font-weight:600;width:88px;flex-shrink:0;color:var(--muted)">${w.label}</div>
+        <div style="flex:1"><div class="pbar"><div class="pbar-fill" style="width:${w.spent?Math.round(w.spent/weeklyMax*100):0}%;background:var(--blue2)"></div></div></div>
+        <div style="font-size:11px;font-family:var(--mono);font-weight:700;width:60px;text-align:right;color:var(--text)">${w.spent?fmt(w.spent):'—'}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Annual month-by-month -->
+    <div class="card" style="margin-bottom:10px">
+      <div class="ctitle">${CM.split('-')[0]} Month-by-Month</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <tr style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.4px">
+            <th style="text-align:left;padding:5px 3px">Month</th>
+            <th style="text-align:right;padding:5px 3px">Income</th>
+            <th style="text-align:right;padding:5px 3px">Spent</th>
+            <th style="text-align:right;padding:5px 3px">EMI</th>
+            <th style="text-align:right;padding:5px 3px">Balance</th>
+          </tr>
+          ${annual.map(m=>{
+            const bal=m.inc-(m.total);
+            const isCurr=m.mo===CM;
+            return `<tr style="border-top:1px solid var(--border);${isCurr?'background:rgba(91,95,255,.07)':''}">
+              <td style="padding:6px 3px;font-weight:${isCurr?800:400}">${mLabel(m.mo)}${isCurr?' ◀':''}</td>
+              <td style="padding:6px 3px;text-align:right;font-family:var(--mono);color:var(--green)">${m.inc?fmt(m.inc):'—'}</td>
+              <td style="padding:6px 3px;text-align:right;font-family:var(--mono);color:var(--red)">${m.total?fmt(m.total):'—'}</td>
+              <td style="padding:6px 3px;text-align:right;font-family:var(--mono);color:var(--purple)">${m.emi?fmt(m.emi):'—'}</td>
+              <td style="padding:6px 3px;text-align:right;font-family:var(--mono);font-weight:700;color:${bal>0?'var(--green)':m.inc?'var(--red)':'var(--muted)'}">${m.inc?fmt(bal):'—'}</td>
+            </tr>`;
+          }).join('')}
+        </table>
+      </div>
+    </div>`;
   const income=getIncome();
   if(income)document.getElementById('inc-input').value=income;
   document.getElementById('share-url').textContent=window.location.href;
@@ -1887,6 +2058,12 @@ function renderReport(){
 
   // Insights
   const insights=[];
+  const thisMonthIncEntries = getIncomeEntries();
+  const totalIncThisMonth = thisMonthIncEntries.reduce((s,e)=>s+e.amount,0) || income2;
+  const incSources = [...new Set(thisMonthIncEntries.map(e=>e.source))];
+  if(incSources.length>1){
+    insights.push({type:'tip',icon:'💰',title:`${incSources.length} income sources this month`,body:`${thisMonthIncEntries.map(e=>`${INC_SOURCES_GLOBAL[e.source]}: ${fmt(e.amount)}`).join(', ')}. Total: ${fmt(totalIncThisMonth)}`});
+  }
   const totalAllEMI=getEMIs().reduce((s,e)=>s+monthsLeft(e,CM)*e.amount,0);
   const totalSavInvested=getSavings().reduce((s,sv)=>s+sv.amount,0);
   const ccTotal=getCCSpends().reduce((s,c)=>s+c.amount,0);
@@ -2711,6 +2888,48 @@ function getTotalOutstandingForCard(cardId, month){
   const thisMonthSpend=spends.filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
   const openingOut=((out[cardId]||{})[month]||0);
   return openingOut+thisMonthSpend;
+}
+
+
+// ════════════════ INCOME TRACKING ════════════════
+const getIncomeEntries = (m) => L(`wo_income_entries_${m||CM}`) || [];
+const setIncomeEntries = (v, m) => S(`wo_income_entries_${m||CM}`, v);
+// INC_SOURCES defined globally above as INC_SOURCES_GLOBAL
+
+function refreshIncSel(){
+  const sel = document.getElementById('inc-bank-sel');
+  if(!sel) return;
+  const accs = getBankAccounts();
+  sel.innerHTML = '<option value="">— Don't auto-credit —</option>' +
+    accs.map(a=>`<option value="${a.id}">${a.name} (${a.bank})</option>`).join('');
+}
+
+function addIncome(){
+  const source = document.getElementById('inc-source').value;
+  const desc   = document.getElementById('inc-desc').value.trim();
+  const amt    = parseFloat(document.getElementById('inc-amt').value)||0;
+  const date   = document.getElementById('inc-date').value || today();
+  const bankId = parseInt(document.getElementById('inc-bank-sel').value)||0;
+  if(!amt){ toast('Enter income amount','var(--red)'); return; }
+  const mo = date.substring(0,7);
+  const entries = getIncomeEntries(mo);
+  entries.push({id:Date.now(), source, desc, amount:amt, date});
+  setIncomeEntries(entries, mo);
+  // Also set as monthly income for calculations
+  const prev = getIncome(mo);
+  setMonthlyIncome(mo, prev + amt);
+  // Auto-credit to bank account
+  if(bankId){
+    const btxns = getBankTxns(bankId);
+    btxns.push({id:Date.now()+1, type:'credit', desc: desc||INC_SOURCES_GLOBAL[source]||'Income', amount:amt, date, autoFrom:'income'});
+    setBankTxns(bankId, btxns);
+  }
+  renderDash(); renderAddSummary();
+  if(_currentPage==='sav'&&savTab==='bank') renderBankAccounts();
+  if(_currentPage==='report') renderReport();
+  document.getElementById('inc-amt').value='';
+  document.getElementById('inc-desc').value='';
+  toast(`✓ ${INC_SOURCES_GLOBAL[source]} ${fmt(amt)} recorded!`, 'var(--green)');
 }
 
 // ════════════════ INCOME MONTH NAV ════════════════
