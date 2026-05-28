@@ -248,65 +248,107 @@ select option{background:var(--s2)}
 
 <!-- ── DASHBOARD ── -->
 <div id="p-dash" class="page on">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div>
-      <div class="ptitle">WealthOS 💰</div>
-      <div style="font-size:12px;color:var(--muted)" id="dash-greet">Your complete financial picture</div>
+      <div style="font-size:20px;font-weight:900;letter-spacing:-.5px">WealthOS 💰</div>
+      <div style="font-size:11px;color:var(--muted)" id="dash-greet">Your financial command centre</div>
     </div>
     <div class="mrow">
       <button class="mb" onclick="sm(-1)">‹</button>
-      <div class="ml" id="dm">—</div>
+      <div class="ml" style="font-size:12px;padding:6px 10px" id="dm">—</div>
       <button class="mb" onclick="sm(1)">›</button>
     </div>
   </div>
 
-  <!-- Alerts -->
+  <!-- Smart alerts banner -->
   <div id="dash-alerts"></div>
 
-  <!-- Hero net worth -->
-  <div class="hero">
-    <div class="hero-lbl">Net Worth This Month</div>
-    <div class="hero-amt"><span class="hero-cur">₹</span><span id="hw-net">0</span></div>
-    <div class="hero-grid">
-      <div class="hg-item"><div class="hg-val" style="color:var(--green)" id="hw-inc">₹0</div><div class="hg-lbl">Income</div></div>
-      <div class="hg-item"><div class="hg-val" style="color:var(--red)" id="hw-exp">₹0</div><div class="hg-lbl">Spent</div></div>
-      <div class="hg-item"><div class="hg-val" style="color:var(--purple)" id="hw-emi">₹0</div><div class="hg-lbl">EMIs</div></div>
-      <div class="hg-item"><div class="hg-val" style="color:var(--teal)" id="hw-sav">₹0</div><div class="hg-lbl">Saved</div></div>
+  <!-- NET POSITION CARD -->
+  <div class="hero" style="padding:18px 20px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div class="hero-lbl">Net Position</div>
+        <div class="hero-amt"><span class="hero-cur">₹</span><span id="hw-net">0</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px" id="hw-net-sub">Income minus all outflows</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Total Balance</div>
+        <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--teal)" id="hw-bankbal">₹0</div>
+        <div style="font-size:10px;color:var(--muted)">across all accounts</div>
+      </div>
+    </div>
+    <!-- Inflow / Outflow bar -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+      <div style="background:rgba(0,229,160,.1);border-radius:10px;padding:8px 6px;text-align:center;border:1px solid rgba(0,229,160,.15)">
+        <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--green)" id="hw-inc">₹0</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;font-weight:600">INCOME</div>
+      </div>
+      <div style="background:rgba(255,64,96,.08);border-radius:10px;padding:8px 6px;text-align:center;border:1px solid rgba(255,64,96,.12)">
+        <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--red)" id="hw-exp">₹0</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;font-weight:600">SPENT</div>
+      </div>
+      <div style="background:rgba(192,96,255,.08);border-radius:10px;padding:8px 6px;text-align:center;border:1px solid rgba(192,96,255,.12)">
+        <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--purple)" id="hw-emi">₹0</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;font-weight:600">EMIS</div>
+      </div>
+      <div style="background:rgba(0,200,255,.08);border-radius:10px;padding:8px 6px;text-align:center;border:1px solid rgba(0,200,255,.12)">
+        <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--teal)" id="hw-sav">₹0</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;font-weight:600">SAVED</div>
+      </div>
     </div>
   </div>
 
-  <!-- Quick stats -->
-  <div class="sg">
-    <div class="sb"><div class="sl">Daily Avg</div><div class="sv r" id="ds-avg">₹0</div><div class="stag tr">per day</div></div>
-    <div class="sb"><div class="sl">Month Projection</div><div class="sv a" id="ds-proj">₹0</div><div class="stag ta">estimated</div></div>
-  </div>
+  <!-- BANK BALANCES ROW -->
+  <div id="dash-banks"></div>
 
-  <!-- EMI due this month -->
+  <!-- EMI STATUS THIS MONTH -->
   <div id="emi-due-card"></div>
 
-  <!-- CC due alerts -->
+  <!-- CC OUTSTANDING -->
   <div id="cc-alert-card"></div>
 
-  <!-- Savings snapshot -->
+  <!-- MONTHLY STATS -->
+  <div class="sg" style="margin-bottom:10px">
+    <div class="sb"><div class="sl">Daily Avg</div><div class="sv r" id="ds-avg">₹0</div><div class="stag tr">per day spent</div></div>
+    <div class="sb"><div class="sl">Month-end Est.</div><div class="sv a" id="ds-proj">₹0</div><div class="stag ta">projected total</div></div>
+  </div>
+  <div class="sg" style="margin-bottom:10px">
+    <div class="sb"><div class="sl">EMIs Paid (lifetime)</div><div class="sv p" id="ds-emipaid">₹0</div><div class="stag tp">total paid</div></div>
+    <div class="sb"><div class="sl">Total EMI Pending</div><div class="sv a" id="ds-emipending">₹0</div><div class="stag ta">all loans</div></div>
+  </div>
+
+  <!-- SAVINGS SNAPSHOT -->
   <div id="sav-snapshot"></div>
 
-  <!-- Category breakdown -->
-  <div class="card">
-    <div class="ctitle">Spending Breakdown</div>
+  <!-- MONEY FLOW — inflow / outflow timeline -->
+  <div class="card" style="margin-bottom:10px">
+    <div class="ctitle">Money Flow This Month</div>
+    <div id="money-flow"></div>
+  </div>
+
+  <!-- SPENDING BREAKDOWN BY CATEGORY -->
+  <div class="card" style="margin-bottom:10px">
+    <div class="ctitle">Spending by Category</div>
     <div id="cat-bd"></div>
   </div>
 
-  <!-- Payment source breakdown -->
-  <div class="card">
-    <div class="ctitle">How You Paid</div>
+  <!-- HOW YOU PAID -->
+  <div class="card" style="margin-bottom:10px">
+    <div class="ctitle">Payment Methods</div>
     <div id="source-breakdown"></div>
   </div>
 
-  <!-- Monthly report mini -->
+  <!-- OUTSTANDINGS SUMMARY -->
+  <div id="dash-outstanding"></div>
+
+  <!-- LAST 6 MONTHS TREND -->
   <div class="card">
-    <div class="ctitle">Last 4 Months</div>
+    <div class="ctitle">6-Month Trend</div>
     <div id="mini-report"></div>
   </div>
+
 </div>
 
 <!-- ── ADD ── -->
@@ -964,75 +1006,275 @@ function reinvest(id){
 
 // ════════════════ DASHBOARD ════════════════
 function renderDash(){
-  document.getElementById('dash-greet').textContent=greet();
-  const txns=getTxns();
-  const emis=emisDue(CM);
-  const ccSpends=getCCSpends();
-  const income=getIncome();
+  document.getElementById('dash-greet').textContent = greet();
+  updateMLbls();
 
-  const totalExp=txns.reduce((s,t)=>s+t.amount,0);
-  const totalEMI=emis.reduce((s,e)=>s+e.amount,0);
-  const totalCC =ccSpends.reduce((s,c)=>s+c.amount,0);
-  const totalSpent=totalExp+totalCC;
+  const txns     = getTxns();
+  const allEmis  = getEMIs();
+  const activeEmis = emisDue(CM);
+  const ccSpends = getCCSpends();
+  const income   = getIncome();
+  const savings  = getSavings();
+  const bankAccs = getBankAccounts();
 
-  // Savings this month (from savings entries contributed this month)
-  const savingsThisMonth=getSavings().filter(s=>s.start&&s.start.substring(0,7)===CM).reduce((a,s)=>a+s.amount,0)
-    +getSavings().filter(s=>s.sip>0).reduce((a,s)=>a+s.sip,0);
+  // ── Core totals ──────────────────────────────────────────────────────────
+  const totalExp    = txns.reduce((s,t) => s+t.amount, 0);
+  const totalEMI    = activeEmis.reduce((s,e) => s+e.amount, 0);
+  const totalCC     = ccSpends.reduce((s,c) => s+c.amount, 0);
+  const totalSpent  = totalExp + totalCC;
+  const totalOutflow= totalSpent + totalEMI;
 
-  const net=income>0?income-(totalSpent+totalEMI):0;
+  // Savings contributions this month
+  const savThisMonth = savings.filter(s=>s.sip>0).reduce((a,s)=>a+s.sip,0)
+    + savings.filter(s=>s.start&&s.start.substring(0,7)===CM).reduce((a,s)=>a+s.amount,0);
 
-  document.getElementById('hw-net').textContent=fmt(net<0?0:net).replace('₹','');
-  document.getElementById('hw-inc').textContent=income?fmt(income):'Tap to set';
-  // Show income set/not set indicator
-  const incBanner=document.getElementById('hw-inc').closest('.hg-item');
-  if(incBanner) incBanner.style.cursor='pointer';
-  document.getElementById('hw-exp').textContent=fmt(totalSpent+totalEMI);
-  document.getElementById('hw-emi').textContent=fmt(totalEMI);
-  document.getElementById('hw-sav').textContent=fmt(savingsThisMonth);
+  // Total bank balance
+  const totalBankBal = bankAccs.reduce((s,a)=>s+getAccountBalance(a), 0);
 
-  // Daily stats
-  const dom=new Date().getDate();
-  const dim=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
-  const dayRate=totalSpent/(dom||1);
-  const proj=(dayRate*dim)+totalEMI;
-  document.getElementById('ds-avg').textContent=fmt(dayRate);
-  document.getElementById('ds-proj').textContent=fmt(proj);
+  // Net position = income - outflow - savings
+  const netPos = income > 0 ? income - totalOutflow - savThisMonth : totalBankBal;
 
-  // Alerts — full smart check
+  // EMI lifetime stats
+  const emiPaidTotal = allEmis.reduce((s,e) => {
+    const paid = monthsPaid(e, CM);
+    return s + paid * e.amount;
+  }, 0);
+  const emiPendingTotal = allEmis.reduce((s,e) => {
+    const left = monthsLeft(e, CM);
+    return s + left * e.amount;
+  }, 0);
+
+  // ── Hero card ─────────────────────────────────────────────────────────────
+  document.getElementById('hw-net').textContent = fmt(Math.abs(netPos)).replace('₹','');
+  const netSub = document.getElementById('hw-net-sub');
+  if(netSub) netSub.textContent = netPos < 0 ? '⚠ Outflow exceeds income' : income > 0 ? `₹${fmt(income)} income - ₹${fmt(totalOutflow)} outflow` : 'Total bank balance';
+  document.getElementById('hw-bankbal').textContent = fmt(totalBankBal);
+  document.getElementById('hw-inc').textContent   = income ? fmt(income) : '—';
+  document.getElementById('hw-exp').textContent   = fmt(totalSpent);
+  document.getElementById('hw-emi').textContent   = fmt(totalEMI);
+  document.getElementById('hw-sav').textContent   = fmt(savThisMonth);
+
+  // ── Monthly stats ─────────────────────────────────────────────────────────
+  const dom = new Date().getDate();
+  const dim = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+  const dailyRate = totalSpent / (dom||1);
+  const projTotal = (dailyRate * dim) + totalEMI;
+  document.getElementById('ds-avg').textContent     = fmt(dailyRate);
+  document.getElementById('ds-proj').textContent    = fmt(projTotal);
+  document.getElementById('ds-emipaid').textContent    = fmt(emiPaidTotal);
+  document.getElementById('ds-emipending').textContent = fmt(emiPendingTotal);
+
+  // ── Smart alerts ─────────────────────────────────────────────────────────
   checkReminders();
 
-  // EMI due
-  renderEMIDueCard(emis);
+  // ── Bank balances row ─────────────────────────────────────────────────────
+  const dbEl = document.getElementById('dash-banks');
+  if(bankAccs.length) {
+    const typeIcons = {savings:'💰',current:'🏢',salary:'💼',cash:'💵'};
+    dbEl.innerHTML = `<div style="overflow-x:auto;margin-bottom:10px"><div style="display:flex;gap:8px;min-width:max-content;padding-bottom:4px">
+      ${bankAccs.map(acc => {
+        const bal = getAccountBalance(acc);
+        const isLow = acc.threshold && bal <= acc.threshold;
+        const isCritical = isLow && bal <= 2000;
+        return `<div style="background:${isCritical?'rgba(255,64,96,.1)':isLow?'rgba(255,176,32,.08)':'var(--s2)'};border:1px solid ${isCritical?'rgba(255,64,96,.3)':isLow?'rgba(255,176,32,.25)':'var(--border)'};border-radius:14px;padding:12px 14px;min-width:130px;flex-shrink:0">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">${typeIcons[acc.type]||'🏦'} ${acc.name}</div>
+          <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${bal<=0?'var(--red)':isLow?'var(--amber)':'var(--green)'}">${fmt(bal)}</div>
+          ${isLow?`<div style="font-size:9px;color:${isCritical?'var(--red)':'var(--amber)'};font-weight:800;margin-top:3px">${isCritical?'🚨 CRITICAL':'⚠ LOW'}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div></div>`;
+  } else {
+    dbEl.innerHTML = '';
+  }
 
-  // CC alert
-  renderCCAlertCard();
+  // ── EMI due this month ────────────────────────────────────────────────────
+  const emiEl = document.getElementById('emi-due-card');
+  if(activeEmis.length) {
+    const today2 = new Date().getDate();
+    emiEl.innerHTML = `<div class="card glow-purple" style="margin-bottom:10px">
+      <div class="ctitle" style="color:var(--purple)">🔁 EMI Status — ${mLong(CM)}</div>
+      ${activeEmis.map(e => {
+        const left = monthsLeft(e, CM);
+        const paid = monthsPaid(e, CM);
+        const daysTodue = e.due - today2;
+        const urgentColor = daysTodue <= 3 ? 'var(--red)' : daysTodue <= 7 ? 'var(--amber)' : 'var(--muted)';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">${EMJ[e.cat]||'📦'} ${e.name}</div>
+            <div style="font-size:10px;color:${urgentColor};font-weight:600;margin-top:2px">
+              Due ${e.due}${ord(e.due)} · ${left} remaining · ${fmt(left*e.amount)} total left
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:10px">
+            <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(e.amount)}</div>
+            <div style="font-size:9px;color:${daysTodue<=3?'var(--red)':'var(--muted)'}">${daysTodue<0?'OVERDUE':daysTodue===0?'DUE TODAY':'in '+daysTodue+'d'}</div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:2px">
+        <div style="font-size:11px;color:var(--muted);font-weight:700">TOTAL EMI THIS MONTH</div>
+        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(totalEMI)}</div>
+      </div>
+    </div>`;
+  } else {
+    emiEl.innerHTML = '';
+  }
 
-  // Savings snapshot
+  // ── CC Outstandings ───────────────────────────────────────────────────────
+  const ccEl = document.getElementById('cc-alert-card');
+  const ccs = getCCs();
+  const ccWithBal = ccs.filter(cc => {
+    const out = (getCCOutstanding()[cc.id]||{})[CM]||0;
+    const sp = getCCSpends().filter(s=>s.cardId===cc.id).reduce((a,s)=>a+s.amount,0);
+    return (out+sp) > 0;
+  });
+  if(ccWithBal.length) {
+    const today3 = new Date().getDate();
+    ccEl.innerHTML = `<div class="card" style="border-color:rgba(192,96,255,.25);margin-bottom:10px">
+      <div class="ctitle" style="color:var(--purple)">💳 CC Outstanding — ${mLong(CM)}</div>
+      ${ccWithBal.map(cc => {
+        const sp = getCCSpends().filter(s=>s.cardId===cc.id).reduce((a,s)=>a+s.amount,0);
+        const out = (getCCOutstanding()[cc.id]||{})[CM]||0;
+        const total = out + sp;
+        const paid = getTotalPaidForCard(cc.id, CM);
+        const pending = Math.max(total-paid,0);
+        const daysLeft = cc.due - today3;
+        const pct = cc.limit ? Math.min(total/cc.limit*100,100) : 0;
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+            <div style="font-size:13px;font-weight:700">💳 ${cc.name}</div>
+            <div style="text-align:right">
+              <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${pending>0?'var(--red)':'var(--green)'}">
+                ${pending>0?fmt(pending)+' pending':'✓ Paid'}
+              </div>
+              <div style="font-size:9px;color:${daysLeft<=3?'var(--red)':'var(--muted)'}">Due ${cc.due}${ord(cc.due)} (${daysLeft<0?'overdue':daysLeft+'d left'})</div>
+            </div>
+          </div>
+          ${cc.limit?`<div class="pbar" style="margin-bottom:4px"><div class="pbar-fill" style="width:${pct.toFixed(0)}%;background:${pct>=80?'var(--red)':pct>=50?'var(--amber)':'var(--purple)'}"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>Used: ${fmt(total)} of ${fmt(cc.limit)}</span><span>${Math.round(pct)}%</span></div>`:''}
+          ${paid>0?`<div style="font-size:10px;color:var(--green);margin-top:3px">✓ Paid: ${fmt(paid)}</div>`:''}
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:2px">
+        <div style="font-size:11px;color:var(--muted);font-weight:700">TOTAL OUTSTANDING</div>
+        <div style="font-size:15px;font-weight:900;font-family:var(--mono);color:var(--purple)">
+          ${fmt(ccWithBal.reduce((s,cc)=>{
+            const sp=getCCSpends().filter(x=>x.cardId===cc.id).reduce((a,x)=>a+x.amount,0);
+            const out=(getCCOutstanding()[cc.id]||{})[CM]||0;
+            const paid=getTotalPaidForCard(cc.id,CM);
+            return s+Math.max(out+sp-paid,0);
+          },0))}
+        </div>
+      </div>
+    </div>`;
+  } else {
+    ccEl.innerHTML = '';
+  }
+
+  // ── Savings snapshot ──────────────────────────────────────────────────────
   renderSavSnapshot();
 
-  // Payment source breakdown for dashboard
-  const bySource={cash:0,bank:0,cc:0,upi:0};
-  txns.forEach(t=>{ bySource[t.source||'cash']=(bySource[t.source||'cash']||0)+t.amount; });
-  bySource.cc+=getCCSpends().reduce((s,c)=>s+c.amount,0); // add pure CC spends too
-
-  // Category
-  const catData=CATS.map(c=>({...c,spent:txns.filter(t=>t.cat===c.id).reduce((s,t)=>s+t.amount,0)}))
-    .filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
-  const cb=document.getElementById('cat-bd');
-  if(!catData.length){cb.innerHTML='<div class="empty"><div class="empty-ic">📊</div><p>No expenses yet this month</p></div>';return;}
-  const max=catData[0].spent;
-  cb.innerHTML=catData.map(c=>`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <div style="width:32px;height:32px;border-radius:9px;background:${c.c}18;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${c.e}</div>
-      <div style="flex:1">
-        <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:4px">
-          <span>${c.l}</span><span style="font-family:var(--mono)">${fmt(c.spent)} <span style="color:var(--muted)">${((c.spent/totalSpent||1)*100).toFixed(0)}%</span></span>
+  // ── Money flow ────────────────────────────────────────────────────────────
+  const mfEl = document.getElementById('money-flow');
+  if(mfEl) {
+    const inflow  = (income || 0) + bankAccs.reduce((s,a)=>{
+      return s + getBankTxns(a.id).filter(t=>t.date&&t.date.substring(0,7)===CM&&t.type==='credit').reduce((x,t)=>x+t.amount,0);
+    },0);
+    const outflow = totalSpent + totalEMI + savThisMonth;
+    const rows = [
+      income ? {label:'💼 Income / Salary', val: income, type:'in'} : null,
+      ...bankAccs.map(a => {
+        const aBankIn = getBankTxns(a.id).filter(t=>t.date&&t.date.substring(0,7)===CM&&t.type==='credit'&&!t.autoFrom).reduce((x,t)=>x+t.amount,0);
+        return aBankIn > 0 ? {label:`🏦 ${a.name} credits`, val: aBankIn, type:'in'} : null;
+      }),
+      totalExp>0   ? {label:'🛒 Day-to-day expenses', val: totalExp, type:'out'} : null,
+      totalCC>0    ? {label:'💳 Credit card spends',  val: totalCC,  type:'out'} : null,
+      totalEMI>0   ? {label:'🔁 EMI payments',        val: totalEMI, type:'out'} : null,
+      savThisMonth>0?{label:'💰 Savings / SIP',       val: savThisMonth,type:'sav'}: null,
+    ].filter(Boolean);
+    const maxVal = Math.max(...rows.map(r=>r.val), 1);
+    mfEl.innerHTML = rows.map(r => {
+      const col = r.type==='in' ? 'var(--green)' : r.type==='sav' ? 'var(--teal)' : 'var(--red)';
+      const bg  = r.type==='in' ? 'rgba(0,229,160,.12)' : r.type==='sav' ? 'rgba(0,200,255,.12)' : 'rgba(255,64,96,.1)';
+      const pct = (r.val/maxVal*100).toFixed(0);
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+        <div style="font-size:11px;font-weight:600;width:150px;flex-shrink:0;color:var(--text)">${r.label}</div>
+        <div style="flex:1">
+          <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${col}"></div></div>
         </div>
-        <div class="pbar"><div class="pbar-fill" style="width:${(c.spent/max)*100}%;background:${c.c}"></div></div>
-      </div>
-    </div>`).join('');
+        <div style="font-size:11px;font-family:var(--mono);font-weight:800;color:${col};width:70px;text-align:right">${r.type==='in'?'+':''}${r.type==='sav'?'':''}${fmt(r.val)}</div>
+      </div>`;
+    }).join('') || '<div style="font-size:11px;color:var(--muted)">No transactions yet this month</div>';
+  }
 
-  // Mini report
+  // ── Category breakdown ────────────────────────────────────────────────────
+  const catData = CATS.map(c=>({...c, spent:txns.filter(t=>t.cat===c.id).reduce((s,t)=>s+t.amount,0)}))
+    .filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
+  const cb = document.getElementById('cat-bd');
+  if(!catData.length) {
+    cb.innerHTML='<div class="empty" style="padding:16px 0"><div class="empty-ic" style="font-size:28px">📊</div><p style="font-size:11px">No expenses yet</p></div>';
+  } else {
+    const maxS = catData[0].spent;
+    cb.innerHTML = catData.map(c=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+        <div style="width:28px;height:28px;border-radius:8px;background:${c.c}18;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${c.e}</div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:3px">
+            <span>${c.l}</span><span style="font-family:var(--mono)">${fmt(c.spent)} <span style="color:var(--muted);font-size:9px">${totalSpent?((c.spent/totalSpent)*100).toFixed(0):0}%</span></span>
+          </div>
+          <div class="pbar"><div class="pbar-fill" style="width:${(c.spent/maxS*100).toFixed(0)}%;background:${c.c}"></div></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Payment methods ───────────────────────────────────────────────────────
+  const bySource = {cash:0, bank:0, cc:0, upi:0};
+  txns.forEach(t=>{ bySource[t.source||'cash'] = (bySource[t.source||'cash']||0) + t.amount; });
+  bySource.cc += totalCC;
+  const srcEl = document.getElementById('source-breakdown');
+  if(srcEl) {
+    const srcLabels={cash:'💵 Cash',bank:'🏦 Bank/Savings',cc:'💳 Credit Card',upi:'📱 UPI'};
+    const srcTotal = Object.values(bySource).reduce((a,b)=>a+b,0) || 1;
+    srcEl.innerHTML = Object.entries(bySource).filter(([,v])=>v>0).map(([k,v])=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:600;width:100px;flex-shrink:0">${srcLabels[k]||k}</div>
+        <div style="flex:1"><div class="pbar"><div class="pbar-fill" style="width:${(v/srcTotal*100).toFixed(0)}%;background:${k==='cc'?'var(--purple)':k==='bank'?'var(--blue2)':k==='upi'?'var(--teal)':'var(--muted)'}"></div></div></div>
+        <div style="font-size:11px;font-family:var(--mono);font-weight:700;width:65px;text-align:right">${fmt(v)}</div>
+      </div>`).join('') || '<div style="font-size:11px;color:var(--muted)">No payment data yet</div>';
+  }
+
+  // ── All outstandings summary ──────────────────────────────────────────────
+  const doEl = document.getElementById('dash-outstanding');
+  const totalCCPending = ccs.reduce((s,cc)=>{
+    const sp=getCCSpends().filter(x=>x.cardId===cc.id).reduce((a,x)=>a+x.amount,0);
+    const out=(getCCOutstanding()[cc.id]||{})[CM]||0;
+    const paid=getTotalPaidForCard(cc.id,CM);
+    return s+Math.max(out+sp-paid,0);
+  },0);
+  const totalEMIPending = emiPendingTotal;
+  if(doEl && (totalCCPending>0 || totalEMIPending>0)) {
+    doEl.innerHTML = `<div class="card" style="border-color:rgba(255,176,32,.25);background:linear-gradient(135deg,rgba(255,176,32,.05),var(--s1));margin-bottom:10px">
+      <div class="ctitle" style="color:var(--amber)">📋 All Outstandings</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:rgba(192,96,255,.08);border-radius:10px;padding:10px;text-align:center;border:1px solid rgba(192,96,255,.15)">
+          <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(totalCCPending)}</div>
+          <div style="font-size:9px;color:var(--muted);font-weight:700;margin-top:3px">CC OUTSTANDING</div>
+        </div>
+        <div style="background:rgba(255,176,32,.08);border-radius:10px;padding:10px;text-align:center;border:1px solid rgba(255,176,32,.15)">
+          <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber)">${fmt(totalEMIPending)}</div>
+          <div style="font-size:9px;color:var(--muted);font-weight:700;margin-top:3px">TOTAL EMI PENDING</div>
+        </div>
+      </div>
+      <div style="background:rgba(255,64,96,.06);border-radius:10px;padding:10px;text-align:center;border:1px solid rgba(255,64,96,.15);margin-top:8px">
+        <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(totalCCPending+totalEMIPending)}</div>
+        <div style="font-size:9px;color:var(--muted);font-weight:700;margin-top:3px">TOTAL OUTSTANDING</div>
+      </div>
+    </div>`;
+  } else if(doEl) {
+    doEl.innerHTML='';
+  }
+
+  // ── 6-month trend ─────────────────────────────────────────────────────────
   renderMiniReport();
 }
 
@@ -1118,26 +1360,26 @@ function renderSavSnapshot(){
 
 function renderMiniReport(){
   const el=document.getElementById('mini-report');
+  if(!el) return;
   const today=new Date();
   const rows=[];
-  for(let i=3;i>=0;i--){
+  for(let i=5;i>=0;i--){
     const d=new Date(today.getFullYear(),today.getMonth()-i,1);
     const mo=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const exp=getTxns(mo).reduce((s,t)=>s+t.amount,0);
     const emi=emisDue(mo).reduce((s,e)=>s+e.amount,0);
     const cc=getCCSpends(mo).reduce((s,c)=>s+c.amount,0);
-    const sav=getSavings().filter(s=>s.sip>0).reduce((a,s)=>a+s.sip,0);
+    const inc=getIncome(mo);
     const isCurr=mo===CM;
+    const total=exp+cc+emi;
     rows.push(`<div class="report-row${isCurr?' curr':''}">
-      <div style="font-weight:${isCurr?800:500}">${mLabel(mo)}${isCurr?' ◀':''}</div>
+      <div style="font-weight:${isCurr?800:500};font-size:11px">${mLabel(mo)}${isCurr?' ◀':''}</div>
       <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--red)">${fmt(exp+cc)}</div>
       <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--purple)">${fmt(emi)}</div>
-      <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--green)">${sav?fmt(sav):'—'}</div>
+      <div style="text-align:right;font-family:var(--mono);font-size:11px;color:${inc&&inc>total?'var(--green)':'var(--muted)'}">${inc?fmt(inc):'—'}</div>
     </div>`);
   }
-  el.innerHTML=`
-    <div class="report-row hdr"><div>Month</div><div style="text-align:right">Expenses</div><div style="text-align:right">EMIs</div><div style="text-align:right">SIP</div></div>
-    ${rows.join('')}`;
+  el.innerHTML=`<div class="report-row hdr"><div>Month</div><div style="text-align:right">Spent</div><div style="text-align:right">EMIs</div><div style="text-align:right">Income</div></div>${rows.join('')}`;
 }
 
 // ════════════════ EMI PAGE ════════════════
