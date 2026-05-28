@@ -220,6 +220,14 @@ select option{background:var(--s2)}
 .empty-ic{font-size:40px;margin-bottom:10px}
 .empty p{font-size:12px;line-height:1.6}
 
+/* REAL-TIME FLASH ANIMATION */
+@keyframes flash-green{0%{background:rgba(0,229,160,.25)}100%{background:transparent}}
+@keyframes flash-red{0%{background:rgba(255,64,96,.25)}100%{background:transparent}}
+.flash-green{animation:flash-green .8s ease-out}
+.flash-red{animation:flash-red .8s ease-out}
+.live-badge{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
 .share-url{background:var(--s3);border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:10px;font-family:var(--mono);color:var(--teal);word-break:break-all;margin:8px 0}
 </style>
 </head>
@@ -253,7 +261,9 @@ select option{background:var(--s2)}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div>
       <div style="font-size:20px;font-weight:900;letter-spacing:-.5px">WealthOS 💰</div>
-      <div style="font-size:11px;color:var(--muted)" id="dash-greet">Your financial command centre</div>
+      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px" id="dash-greet">
+        <span class="live-badge"></span> Live tracking
+      </div>
     </div>
     <div class="mrow">
       <button class="mb" onclick="sm(-1)">‹</button>
@@ -354,7 +364,7 @@ select option{background:var(--s2)}
 <!-- ── ADD ── -->
 <div id="p-add" class="page">
   <div class="ptitle">Add Entry</div>
-  <div class="psub">Track every rupee you spend or save</div>
+  <div id="add-live-summary" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none"></div>
 
   <div class="ttog" style="flex-wrap:wrap;gap:4px">
     <button class="ttbtn on" id="tadd-exp" onclick="setAddType('exp')" style="flex:1;min-width:80px">💸 Expense</button>
@@ -369,7 +379,9 @@ select option{background:var(--s2)}
     <div class="fg"><label>Category</label><div class="catscroll" id="cat-pills"></div></div>
     <div class="fg"><label>Description</label><input type="text" id="e-desc" placeholder="e.g. Zomato, Petrol, Movie..." autocomplete="off"/></div>
     <div class="ir">
-      <div class="fg"><label>Amount (₹)</label><input type="number" id="e-amt" placeholder="0" inputmode="decimal"/></div>
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="e-amt" placeholder="0" inputmode="decimal" oninput="previewExpense(this.value)"/>
+        <div id="exp-preview" style="font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--mono);min-height:16px"></div>
+      </div>
       <div class="fg"><label>Date</label><input type="date" id="e-date"/></div>
     </div>
     <div class="fg">
@@ -685,6 +697,29 @@ const getCCSpends=m=>L(`wo_cc_${m||CM}`)||[];
 const setCCSpends=(v,m)=>S(`wo_cc_${m||CM}`,v);
 const getSavings=()=>L('wo_savings')||[];
 const setSavings=v=>S('wo_savings',v);
+// ════════════════ REAL-TIME REFRESH ENGINE ════════════════
+let _currentPage = 'dash';
+let _refreshTimer = null;
+
+// Central refresh — always refreshes current page + dashboard if on a subpage
+function refreshAll(){
+  if(_currentPage === 'dash')  renderDash();
+  if(_currentPage === 'emi')   { renderEMI(); }
+  if(_currentPage === 'sav')   { savTab==='bank'?renderBankAccounts():renderSavings(); }
+  if(_currentPage === 'cc')    renderCC();
+  if(_currentPage === 'report')renderReport();
+  // Always keep dashboard fresh in background (for badge counts etc)
+}
+
+// Wrap localStorage save to trigger refresh
+const _S = S;
+function S(k,v){
+  _S(k,v);
+  // Debounce refresh so rapid saves don't cause multiple renders
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(refreshAll, 80);
+}
+
 const getIncome=(m)=>{
   const mo=m||CM;
   const monthly=L('wo_income_monthly')||{};
@@ -780,21 +815,26 @@ function procPin(){
     else{err.textContent='PINs do not match';pinMode='change2';updateLock();}
   }
 }
-function unlock(){document.getElementById('lock').classList.add('off');renderDash();}
+function unlock(){
+  document.getElementById('lock').classList.add('off');
+  _currentPage='dash';
+  renderDash();
+}
 function changePin(){document.getElementById('lock').classList.remove('off');pinMode='change';updateLock();}
 
 // ════════════════ NAV ════════════════
 function go(id,btn){
+  _currentPage = id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('p-'+id).classList.add('on');
   if(btn)btn.classList.add('on');
-  if(id==='dash')renderDash();
-  if(id==='emi')renderEMI();
-  if(id==='sav')renderSavings();
-  if(id==='cc')renderCC();
-  if(id==='report')renderReport();
-  if(id==='add'){resetForms();setTimeout(()=>{renderCatPills();updateSourceUI();},50);}
+  if(id==='dash')   renderDash();
+  if(id==='emi')    renderEMI();
+  if(id==='sav')    savTab==='bank'?renderBankAccounts():renderSavings();
+  if(id==='cc')     renderCC();
+  if(id==='report') renderReport();
+  if(id==='add')    {resetForms();setTimeout(()=>{renderCatPills();updateSourceUI();renderAddSummary();},50);}
   updateMLbls();
 }
 function sm(d){
@@ -802,7 +842,11 @@ function sm(d){
   const nd=new Date(y,m-1+d,1);
   CM=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
   updateMLbls();
-  renderDash();renderEMI();renderCC();
+  renderDash();
+  if(_currentPage==='emi')    renderEMI();
+  if(_currentPage==='cc')     renderCC();
+  if(_currentPage==='sav')    savTab==='bank'?renderBankAccounts():renderSavings();
+  if(_currentPage==='report') renderReport();
 }
 function updateMLbls(){
   ['dm','em','cm'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=mLong(CM);});
@@ -838,6 +882,28 @@ function initAddPage(){
   updateSourceUI();
 }
 
+function renderAddSummary(){
+  const el=document.getElementById('add-live-summary');
+  if(!el) return;
+  const txns=getTxns();
+  const emis=emisDue(CM);
+  const ccs=getCCSpends();
+  const bankAccs=getBankAccounts();
+  const exp=txns.reduce((s,t)=>s+t.amount,0);
+  const emi=emis.reduce((s,e)=>s+e.amount,0);
+  const cc=ccs.reduce((s,c)=>s+c.amount,0);
+  const totalBal=bankAccs.reduce((s,a)=>s+getAccountBalance(a),0);
+  const items=[
+    {l:'Spent',v:fmt(exp+cc),c:'var(--red)'},
+    {l:'EMIs',v:fmt(emi),c:'var(--purple)'},
+    {l:'Balance',v:fmt(totalBal),c:'var(--green)'},
+  ];
+  el.innerHTML=items.map(i=>`<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:7px 12px;flex-shrink:0;text-align:center">
+    <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${i.c}">${i.v}</div>
+    <div style="font-size:9px;color:var(--muted);font-weight:600">${i.l}</div>
+  </div>`).join('');
+}
+
 function renderCatPills(){
   document.getElementById('cat-pills').innerHTML=CATS.map(c=>`
     <div class="cpill ${c.id===selCat?'on':''}" onclick="sc('${c.id}')"><span>${c.e}</span><span>${c.l}</span></div>`).join('');
@@ -850,6 +916,36 @@ function refreshCCSel(){
 }
 
 // ADD EXPENSE
+function previewExpense(val){
+  const amt = parseFloat(val)||0;
+  const prev = document.getElementById('exp-preview');
+  if(!prev||!amt) { if(prev) prev.textContent=''; return; }
+  const src = document.getElementById('e-source')?.value||'cash';
+  const bankAccs = getBankAccounts();
+  let msg = '';
+  if(src==='bank'||src==='upi'){
+    const accId = parseInt(document.getElementById('e-bank-acc')?.value);
+    const acc = bankAccs.find(a=>a.id===accId);
+    if(acc){
+      const bal = getAccountBalance(acc);
+      const remaining = bal - amt;
+      msg = `${acc.name}: ${fmt(bal)} → ${fmt(remaining)}${remaining<0?' ⚠ INSUFFICIENT':remaining<(acc.threshold||5000)?' ⚠ LOW':''}`;
+      prev.style.color = remaining<0?'var(--red)':remaining<(acc.threshold||5000)?'var(--amber)':'var(--muted)';
+    }
+  } else if(src==='cc'){
+    const cardId = parseInt(document.getElementById('e-cc-card')?.value);
+    const card = getCCs().find(c=>c.id===cardId);
+    if(card){
+      const used = getCCSpends().filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0);
+      const newUsed = used + amt;
+      const pct = card.limit ? Math.round(newUsed/card.limit*100) : 0;
+      msg = card.limit ? `${card.name}: ${fmt(newUsed)} used (${pct}% of ${fmt(card.limit)})${pct>=80?' ⚠ HIGH':''}`:`${card.name}: ${fmt(newUsed)} total this month`;
+      prev.style.color = pct>=80?'var(--red)':pct>=50?'var(--amber)':'var(--muted)';
+    }
+  }
+  prev.textContent = msg;
+}
+
 function updateSourceUI(){
   const src=document.getElementById('e-source').value;
   document.getElementById('e-bank-sel-wrap').style.display=(src==='bank'||src==='upi')?'block':'none';
@@ -913,6 +1009,8 @@ function addExpense(){
   toast(`✓ ${fmt(amt)} added${txn.sourceLabel?' ('+txn.sourceLabel+')':''}!`);
   document.getElementById('e-amt').value='';
   document.getElementById('e-desc').value='';
+  // Immediate real-time refresh
+  if(mo===CM){ renderDash(); renderAddSummary(); }
 }
 
 // ADD EMI
@@ -928,7 +1026,11 @@ function addEMI(){
   // Store as remaining-based — no start month needed
   const emis=getEMIs();
   emis.push({id:Date.now(),name,amount:amt,due,remaining,total:total||remaining,rate,cat,addedOn:todayMonth()});
-  setEMIs(emis);toast(`✓ ${name} — ${remaining} EMIs remaining`);resetForms();
+  setEMIs(emis);
+  renderDash(); renderAddSummary(); renderEMI();
+  if(_currentPage==='report') renderReport();
+  toast(`✓ ${name} — ${remaining} EMIs remaining · ${fmt(remaining*amt)} total`);
+  resetForms();
 }
 
 // ADD CC
@@ -940,7 +1042,12 @@ function addCC(){
   if(!name){toast('Enter card name','var(--red)');return;}
   const ccs=getCCs();
   ccs.push({id:Date.now(),name,bank,limit,due});
-  setCCs(ccs);toast(`✓ ${name} added!`);resetForms();refreshCCSel();
+  setCCs(ccs);
+  renderDash(); renderAddSummary();
+  refreshCCSel();
+  if(_currentPage==='cc') renderCC();
+  toast(`✓ ${name} card added!`);
+  resetForms();
 }
 function addCCSpend(){
   const ccs=getCCs();
@@ -953,8 +1060,16 @@ function addCCSpend(){
   const mo=date.substring(0,7);
   const spends=getCCSpends(mo);
   spends.push({id:Date.now(),cardId,desc,amount:amt,date});
-  setCCSpends(spends,mo);toast(`✓ CC spend ${fmt(amt)} added!`);
-  document.getElementById('cc-amt').value='';document.getElementById('cc-desc').value='';
+  setCCSpends(spends,mo);
+  const cardName=getCCs().find(c=>c.id===cardId)?.name||'card';
+  // Real-time refresh
+  renderDash();
+  renderAddSummary();
+  if(_currentPage==='cc') renderCC();
+  document.getElementById('cc-amt').value='';
+  document.getElementById('cc-desc').value='';
+  document.getElementById('cc-date').value=today();
+  toast(`✓ ${fmt(amt)} on ${cardName} — CC total now ${fmt((getCCSpends(mo)||[]).filter(s=>s.cardId===cardId).reduce((a,s)=>a+s.amount,0))}`, 'var(--purple)');
 }
 
 // ADD SAVINGS
@@ -970,7 +1085,11 @@ function addSavings(){
   const savings=getSavings();
   const entry={id:Date.now(),name,type,amount:amt,rate,start,maturity:mat,sip,status:'active',maturedBalance:0};
   savings.push(entry);
-  setSavings(savings);toast(`✓ ${name} added!`);resetForms();
+  setSavings(savings);
+  renderDash(); renderAddSummary();
+  if(_currentPage==='sav') savTab==='bank'?renderBankAccounts():renderSavings();
+  toast(`✓ ${name} added!`);
+  resetForms();
 }
 
 function markMatured(id){
@@ -1625,11 +1744,12 @@ function renderCC(){
   }
 
   document.getElementById('cc-cards').innerHTML=ccs.map(cc=>{
-    const spends=ccSpends.filter(s=>s.cardId===cc.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const spends=getCCSpends(CM).filter(s=>s.cardId===cc.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
     const thisMonthSpend=spends.reduce((a,s)=>a+s.amount,0);
     const opening=(getCCOutstanding()[cc.id]||{})[CM]||0;
     const totalDue=opening+thisMonthSpend;
-    const payHist=getCCPaymentHistory();
+    // Always read payment history fresh from storage
+    const payHist=L('wo_cc_pay_history')||{};
     const payments=((payHist[cc.id]||{})[CM]||[]);
     const totalPaid=payments.reduce((s,p)=>s+p.amount,0);
     const pending=Math.max(totalDue-totalPaid,0);
@@ -2059,18 +2179,7 @@ function openCCPayment(cardId){
   document.getElementById('cc-pay-modal').style.display='block';
 }
 
-function saveCCPayment(){
-  if(!ccPayCard)return;
-  const amt=parseFloat(document.getElementById('cc-pay-amt').value)||0;
-  if(!amt){toast('Enter payment amount','var(--red)');return;}
-  const payments=getPayments();
-  if(!payments[CM])payments[CM]={};
-  payments[CM][ccPayCard.id]=(payments[CM][ccPayCard.id]||0)+amt;
-  savePayments(payments);
-  closeCCPay();
-  renderCC();
-  toast(`✓ Payment of ${fmt(amt)} recorded!`);
-}
+
 
 // ════════════════ REMINDERS ════════════════
 function getReminders(){ return L('wo_reminders')||[]; }
@@ -2299,6 +2408,8 @@ function addBankAccount(){
   document.getElementById('bacc-name').value='';
   document.getElementById('bacc-bank').value='';
   document.getElementById('bacc-bal').value='';
+  renderDash();
+  renderBankAccounts();
 }
 
 function addBankTxn(){
@@ -2312,7 +2423,20 @@ function addBankTxn(){
   const txns=getBankTxns(accId);
   txns.push({id:Date.now(),type:bankTxnType,desc,amount:amt,date:date||today()});
   setBankTxns(accId,txns);
-  toast(`✓ ${bankTxnType==='credit'?'Credit':'Debit'} of ${fmt(amt)} recorded`);
+  // Real-time refresh everything
+  renderDash();
+  renderAddSummary();
+  if(_currentPage==='sav'&&savTab==='bank') renderBankAccounts();
+  // Immediate low balance warning
+  const chkAcc=getBankAccounts().find(a=>a.id===accId);
+  if(chkAcc){
+    const nb=getAccountBalance(chkAcc);
+    const col=nb<=2000?'var(--red)':nb<=(chkAcc.threshold||0)?'var(--amber)':'var(--green)';
+    const warn=chkAcc.threshold&&nb<=chkAcc.threshold?' ⚠ LOW BALANCE':'';
+    setTimeout(()=>toast(`${bankTxnType==='credit'?'✓ +':' ✓ -'}${fmt(amt)} · ${chkAcc.name}: ${fmt(nb)}${warn}`,col),100);
+  } else {
+    toast(`✓ ${bankTxnType==='credit'?'Credit':'Debit'} of ${fmt(amt)} recorded`);
+  }
   document.getElementById('btxn-amt').value='';
   document.getElementById('btxn-desc').value='';
 }
@@ -2409,9 +2533,12 @@ function delBankAccount(id){
 }
 
 function delBankTxn(accId,txnId){
-  if(!confirm('Delete transaction?'))return;
+  if(!confirm('Delete this transaction?'))return;
   setBankTxns(accId,getBankTxns(accId).filter(t=>t.id!==txnId));
-  renderBankAccounts();toast('🗑 Deleted','var(--red)');
+  renderBankAccounts();
+  renderDash();
+  renderAddSummary();
+  toast('🗑 Deleted','var(--red)');
 }
 
 function editBankAccount(id){
@@ -2522,6 +2649,8 @@ function addCCEMI(){
   setCCEMIs(ccemis);
   toast(`✓ CC EMI added — ${fmt(Math.round(emi))}/month for ${count} months`);
   ['ccemi-desc','ccemi-total','ccemi-count','ccemi-rate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderDash();
+  if(_currentPage==='cc') renderCC();
 }
 
 // ════════════════ CC OUTSTANDING (multi-payment) ════════════════
@@ -2542,6 +2671,8 @@ function addOutstanding(){
   setCCOutstanding(out);
   toast(`✓ Outstanding of ${fmt(amt)} set for card`);
   document.getElementById('ccout-amt').value='';
+  renderDash();
+  if(_currentPage==='cc') renderCC();
 }
 
 // Override saveCCPayment to support multi-payment with history
@@ -2558,8 +2689,15 @@ function saveCCPayment(){
   hist[ccPayCard.id][CM].push({id:Date.now(),amount:amt,date,type});
   setCCPaymentHistory(hist);
   closeCCPay();
+  // Real-time: refresh CC page + dashboard outstanding immediately
   renderCC();
-  toast(`✓ Payment of ${fmt(amt)} recorded!`);
+  renderDash();
+  // Show updated pending amount in toast
+  const newPending = Math.max(
+    (((getCCOutstanding()[ccPayCard.id]||{})[CM]||0) +
+    (L(`wo_cc_${CM}`)||[]).filter(s=>s.cardId===ccPayCard.id).reduce((a,s)=>a+s.amount,0)) -
+    ((L('wo_cc_pay_history')||{})[ccPayCard.id]?.[CM]||[]).reduce((a,p)=>a+p.amount,0), 0);
+  toast(`✓ ₹${Math.round(amt).toLocaleString('en-IN')} paid! ${newPending>0?'Pending: '+fmt(newPending):'Bill fully cleared ✓'}`, newPending===0?'var(--green)':'var(--amber)');
 }
 
 function getTotalPaidForCard(cardId, month){
@@ -2624,6 +2762,41 @@ function clearMonthIncome(mo){
 // ════════════════ BOOT ════════════════
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 updateMLbls();initLock();checkReminders();
+
+// Auto-refresh current view every 30s (for multi-device use)
+setInterval(()=>{
+  if(document.visibilityState==='visible'){
+    if(_currentPage==='dash')   renderDash();
+    if(_currentPage==='emi')    renderEMI();
+    if(_currentPage==='cc')     renderCC();
+    if(_currentPage==='sav')    savTab==='bank'?renderBankAccounts():renderSavings();
+    if(_currentPage==='report') renderReport();
+    renderAddSummary();
+  }
+}, 30000);
+
+// Re-render on tab focus (if someone adds on phone while viewing on PC)
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    if(_currentPage==='dash') renderDash();
+    renderAddSummary();
+  }
+});
+
+// Auto-refresh every 60 seconds to catch any time-based changes
+setInterval(()=>{
+  if(!document.getElementById('lock').classList.contains('off')) return; // don't refresh if locked
+  checkReminders(); // re-check due dates
+  if(_currentPage==='dash') renderDash();
+}, 60000);
+
+// Refresh when tab becomes visible again (e.g. switching back from another app)
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden){
+    checkReminders();
+    if(_currentPage==='dash') renderDash();
+  }
+});
 </script>
 
 <!-- ══════════════ EDIT MODAL ══════════════ -->
