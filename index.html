@@ -562,10 +562,28 @@ function toast(msg,col='var(--green)'){
 function emisDueIn(month){
   const [y,m]=month.split('-').map(Number);
   return getEMIs().filter(e=>{
-    const [sy,sm]=e.startMonth.split('-').map(Number);
+    if(!e.startMonth) return false;
+    const parts=e.startMonth.toString().split('-');
+    const sy=parseInt(parts[0]),sm=parseInt(parts[1]);
     const elapsed=(y-sy)*12+(m-sm);
-    return elapsed>=0&&elapsed<e.tenure;
+    return elapsed>=0&&elapsed<(e.tenure||0);
   });
+}
+
+function emiMonthsLeft(e, month){
+  const [y,m]=month.split('-').map(Number);
+  const parts=e.startMonth.toString().split('-');
+  const sy=parseInt(parts[0]),sm=parseInt(parts[1]);
+  const elapsed=(y-sy)*12+(m-sm);
+  return Math.max(e.tenure-elapsed,0);
+}
+
+function emiMonthsPaid(e, month){
+  const [y,m]=month.split('-').map(Number);
+  const parts=e.startMonth.toString().split('-');
+  const sy=parseInt(parts[0]),sm=parseInt(parts[1]);
+  const elapsed=(y-sy)*12+(m-sm);
+  return Math.min(Math.max(elapsed,0),e.tenure);
 }
 
 function greet(){
@@ -828,6 +846,129 @@ function renderDash(){
     :'<div class="empty" style="padding:16px 0"><p style="font-size:12px">No transactions. Tap + to add.</p></div>';
 }
 
+function render12MonthForecast(){
+  const emis=getEMIs();
+  if(!emis.length){
+    document.getElementById('emi-closing-section').innerHTML='';
+    return;
+  }
+  const income=getIncome();
+  const today=new Date();
+  // Build next 12 months
+  const months=[];
+  for(let i=0;i<12;i++){
+    const d=new Date(today.getFullYear(),today.getMonth()+i,1);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const activeEmis=emisDueIn(key);
+    const emiTotal=activeEmis.reduce((s,e)=>s+e.amount,0);
+    const txns=getTxns(key);
+    const expTotal=txns.reduce((s,t)=>s+t.amount,0);
+    months.push({key,label:d.toLocaleString('default',{month:'short',year:'2-digit'}),emiTotal,expTotal,activeCount:activeEmis.length});
+  }
+
+  // EMIs closing soon (within 3 months)
+  const [cy,cm]=currentMonth.split('-').map(Number);
+  const closing=emis.filter(e=>{
+    const left=emiMonthsLeft(e,currentMonth);
+    return left>0&&left<=3;
+  });
+  const savingsFromClosing=closing.reduce((s,e)=>s+e.amount,0);
+
+  // Current month EMI due
+  const currEmi=months[0].emiTotal;
+
+  let html='';
+
+  // Current month EMI due card
+  if(currEmi>0){
+    const emiList=emisDueIn(currentMonth);
+    html+=`<div class="card" style="border-color:rgba(191,95,255,.3);background:linear-gradient(135deg,rgba(191,95,255,.06),var(--s1));margin-bottom:12px">
+      <div class="card-title" style="color:var(--purple)">🔁 EMI Due This Month</div>
+      ${emiList.map(e=>{
+        const left=emiMonthsLeft(e,currentMonth);
+        const paid=emiMonthsPaid(e,currentMonth);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:700">${EMI_EMOJIS[e.cat]||'📦'} ${e.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">
+              ${paid} paid · <span style="color:${left<=3?'var(--green)':'var(--amber)'}">${left} remaining</span> · Due ${e.dueday}${ordinal(e.dueday)}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:800;font-family:var(--mono);color:var(--purple)">${fmt(e.amount)}</div>
+            <div style="font-size:10px;color:var(--muted)">${fmt(left*e.amount)} total left</div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted)">TOTAL DUE THIS MONTH</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--purple)">${fmt(currEmi)}</div>
+      </div>
+    </div>`;
+  }
+
+  // EMI closing soon
+  if(closing.length){
+    html+=`<div class="card" style="border-color:rgba(0,229,160,.3);background:linear-gradient(135deg,rgba(0,229,160,.05),var(--s1));margin-bottom:12px">
+      <div class="card-title" style="color:var(--green)">🎉 EMIs Closing Soon!</div>
+      ${closing.map(e=>{
+        const left=emiMonthsLeft(e,currentMonth);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700">${EMI_EMOJIS[e.cat]||'📦'} ${e.name}</div>
+            <div style="font-size:11px;color:var(--muted)">
+              ${left} payment${left>1?'s':''} remaining · ${fmt(left*e.amount)} total left
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--green)">${fmt(e.amount)}/mo</div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:10px 12px;margin-top:6px">
+        <div style="font-size:13px;color:var(--green);font-weight:800">💡 You'll free up <span style="font-family:var(--mono)">${fmt(savingsFromClosing)}/month</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Redirect this to savings or investments once these close.</div>
+      </div>
+    </div>`;
+  }
+
+  // 12-month EMI forecast table
+  html+=`<div class="card" style="margin-bottom:12px">
+    <div class="card-title">📅 12-Month EMI Forecast</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px">
+            <th style="text-align:left;padding:6px 4px;font-weight:700">Month</th>
+            <th style="text-align:right;padding:6px 4px;font-weight:700">EMI Due</th>
+            <th style="text-align:right;padding:6px 4px;font-weight:700">Active</th>
+            ${income?'<th style="text-align:right;padding:6px 4px;font-weight:700">After EMI</th>':''}
+          </tr>
+        </thead>
+        <tbody>
+          ${months.map((mo,i)=>{
+            const isCurr=mo.key===currentMonth;
+            const afterEmi=income-mo.emiTotal;
+            const isLower=i>0&&mo.emiTotal<months[i-1].emiTotal;
+            const saved=i>0?months[i-1].emiTotal-mo.emiTotal:0;
+            return `<tr style="border-top:1px solid var(--border);${isCurr?'background:rgba(108,99,255,.08)':''}">
+              <td style="padding:8px 4px;font-weight:${isCurr?'800':'500'};color:${isCurr?'var(--blue2)':'var(--text)'}">${mo.label}${isCurr?' ◀':''}</td>
+              <td style="padding:8px 4px;text-align:right;font-family:var(--mono);color:var(--purple);font-weight:700">${fmt(mo.emiTotal)}</td>
+              <td style="padding:8px 4px;text-align:right;color:var(--muted)">${mo.activeCount}</td>
+              ${income?`<td style="padding:8px 4px;text-align:right;font-family:var(--mono);font-weight:700;color:${afterEmi<0?'var(--red)':'var(--green)'}">${fmt(afterEmi)}</td>`:''}
+            </tr>
+            ${isLower&&saved>0?`<tr><td colspan="${income?4:3}" style="padding:2px 4px 6px">
+              <span style="background:rgba(0,229,160,.1);color:var(--green);font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px">✓ Saves ${fmt(saved)}/mo from here</span>
+            </td></tr>`:''}`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  document.getElementById('emi-closing-section').innerHTML=html;
+}
+
 function renderBudgetMeter(exp,emi,income){
   const el=document.getElementById('budget-meter');
   const total=exp+emi;
@@ -1009,18 +1150,29 @@ function renderHistory(){
     items=f.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>txnHTML(t,true));
   }
   if(histFilter==='all'||histFilter==='emi'){
-    items=[...items,...emis.map(e=>`
-      <div class="txn-item">
-        <div class="txn-emoji" style="background:rgba(191,95,255,.12)">${EMI_EMOJIS[e.cat]||'📦'}</div>
-        <div class="txn-info">
-          <div class="txn-name">${e.name}</div>
-          <div class="txn-meta">🔁 EMI · Due ${e.dueday}${ordinal(e.dueday)}</div>
+    items=[...items,...emis.map(e=>{
+      const left=emiMonthsLeft(e,currentMonth);
+      const paid=emiMonthsPaid(e,currentMonth);
+      const pct=Math.round((paid/e.tenure)*100);
+      return `<div style="background:linear-gradient(135deg,rgba(191,95,255,.08),var(--s1));border:1px solid rgba(191,95,255,.2);border-radius:14px;padding:14px;margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div class="txn-emoji" style="background:rgba(191,95,255,.12)">${EMI_EMOJIS[e.cat]||'📦'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700">${e.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">🔁 Due ${e.dueday}${ordinal(e.dueday)} · ${paid}/${e.tenure} paid · ${pct}% complete</div>
+            <div style="height:4px;background:var(--s3);border-radius:2px;margin-top:8px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--purple),var(--blue2));border-radius:2px"></div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:15px;font-weight:800;font-family:var(--mono);color:var(--purple)">${fmt(e.amount)}</div>
+            <div style="font-size:10px;color:${left<=3?'var(--green)':'var(--muted)'};margin-top:2px">${left} months left</div>
+            <div style="font-size:10px;color:var(--muted)">${fmt(left*e.amount)} pending</div>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="txn-amt" style="color:var(--purple)">${fmt(e.amount)}</div>
-          <button class="del-btn" onclick="delEMI(${e.id})">🗑</button>
-        </div>
-      </div>`)];
+        ${left<=3?`<div style="background:rgba(0,229,160,.1);border-radius:8px;padding:6px 10px;margin-top:8px;font-size:11px;color:var(--green);font-weight:700">🎉 Closing soon! Frees up ${fmt(e.amount)}/mo</div>`:''}
+      </div>`;
+    })];
   }
   hl.innerHTML=items.length?items.join(''):'<div class="empty"><div class="empty-icon">🗒️</div><p>No entries found</p></div>';
 }
