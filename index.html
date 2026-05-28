@@ -452,9 +452,28 @@ select option{background:var(--s2)}
   <div id="report-insights"></div>
   <div class="sec">Settings</div>
   <div class="card">
-    <div class="ctitle">Profile</div>
-    <div class="fg"><label>Monthly Income (₹)</label><input type="number" id="inc-input" placeholder="e.g. 80000" inputmode="numeric"/></div>
+    <div class="ctitle">Monthly Income</div>
+    <div style="background:var(--s3);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--muted);line-height:1.6">
+      Income can vary each month — set it per month. It will be used to calculate savings rate and disposable income for that specific month.
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted)">Setting income for:</div>
+      <div style="font-size:13px;font-weight:800;color:var(--blue2)" id="inc-month-lbl">—</div>
+    </div>
+    <div class="mrow" style="margin-bottom:10px">
+      <button class="mb" onclick="incShiftMonth(-1)">‹</button>
+      <div class="ml" id="inc-month-sel">—</div>
+      <button class="mb" onclick="incShiftMonth(1)">›</button>
+    </div>
+    <div class="fg"><label>Income for this month (₹)</label>
+      <input type="number" id="inc-input" placeholder="e.g. 80000" inputmode="numeric"/>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="inc-default" style="width:auto;border-radius:4px;width:16px;height:16px"/>
+      <label for="inc-default" style="font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0;margin:0">Also set as default income for months with no entry</label>
+    </div>
     <button class="btn btn-g btn-sm" onclick="saveIncome()" style="margin-bottom:12px">Save Income</button>
+    <div id="income-history" style="margin-top:4px"></div>
     <div class="ctitle" style="margin-top:8px">Security</div>
     <button class="btn btn-p" style="margin-bottom:8px" onclick="changePin()">🔒 Change PIN</button>
     <div class="ctitle" style="margin-top:8px">Share App</div>
@@ -514,7 +533,17 @@ const getCCSpends=m=>L(`wo_cc_${m||CM}`)||[];
 const setCCSpends=(v,m)=>S(`wo_cc_${m||CM}`,v);
 const getSavings=()=>L('wo_savings')||[];
 const setSavings=v=>S('wo_savings',v);
-const getIncome=()=>L('wo_income')||0;
+const getIncome=(m)=>{
+  const mo=m||CM;
+  const monthly=L('wo_income_monthly')||{};
+  // Use that month's income, else fall back to default income
+  return monthly[mo]||L('wo_income')||0;
+};
+const setMonthlyIncome=(mo,val)=>{
+  const monthly=L('wo_income_monthly')||{};
+  monthly[mo]=val;
+  S('wo_income_monthly',monthly);
+};
 const getPin=()=>L('wo_pin');
 
 // ════════════════ UTILS ════════════════
@@ -732,10 +761,13 @@ function renderDash(){
   const savingsThisMonth=getSavings().filter(s=>s.start&&s.start.substring(0,7)===CM).reduce((a,s)=>a+s.amount,0)
     +getSavings().filter(s=>s.sip>0).reduce((a,s)=>a+s.sip,0);
 
-  const net=income-(totalSpent+totalEMI);
+  const net=income>0?income-(totalSpent+totalEMI):0;
 
   document.getElementById('hw-net').textContent=fmt(net<0?0:net).replace('₹','');
-  document.getElementById('hw-inc').textContent=income?fmt(income):'Set ›';
+  document.getElementById('hw-inc').textContent=income?fmt(income):'Tap to set';
+  // Show income set/not set indicator
+  const incBanner=document.getElementById('hw-inc').closest('.hg-item');
+  if(incBanner) incBanner.style.cursor='pointer';
   document.getElementById('hw-exp').textContent=fmt(totalSpent+totalEMI);
   document.getElementById('hw-emi').textContent=fmt(totalEMI);
   document.getElementById('hw-sav').textContent=fmt(savingsThisMonth);
@@ -1197,6 +1229,8 @@ function delCC(id){
 
 // ════════════════ REPORT PAGE ════════════════
 function renderReport(){
+  incomeMonth=CM;
+  refreshIncomeUI();
   const income=getIncome();
   if(income)document.getElementById('inc-input').value=income;
   document.getElementById('share-url').textContent=window.location.href;
@@ -1284,7 +1318,13 @@ function renderReport(){
 
 function saveIncome(){
   const v=parseFloat(document.getElementById('inc-input').value)||0;
-  S('wo_income',v);toast('✓ Income saved!');renderDash();
+  const setDefault=document.getElementById('inc-default')?.checked;
+  // Always save for current month
+  setMonthlyIncome(CM,v);
+  // If "set as default" checked, save as base income too
+  if(setDefault) S('wo_income',v);
+  toast(`✓ Income for ${mLong(CM)} saved!`);
+  renderDash();renderReport();
 }
 
 // ════════════════ SHARE ════════════════
@@ -1569,6 +1609,52 @@ function checkReminders(){
     const msg=alerts.map(a=>`${a.name}: ${fmt(a.amount)} due in ${a.daysTodue} day${a.daysTodue!==1?'s':''}`).join(' | ');
     setTimeout(()=>toast('🔔 '+msg,'var(--amber)'),1000);
   }
+}
+
+// ════════════════ INCOME MONTH NAV ════════════════
+let incomeMonth = todayMonth();
+
+function incShiftMonth(d){
+  const[y,m]=incomeMonth.split('-').map(Number);
+  const nd=new Date(y,m-1+d,1);
+  incomeMonth=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  refreshIncomeUI();
+}
+
+function refreshIncomeUI(){
+  const el1=document.getElementById('inc-month-lbl');
+  const el2=document.getElementById('inc-month-sel');
+  if(el1) el1.textContent=mLong(incomeMonth);
+  if(el2) el2.textContent=mLong(incomeMonth);
+  const current=getIncome(incomeMonth);
+  const inp=document.getElementById('inc-input');
+  if(inp) inp.value=current||'';
+  // Show income history
+  const hist=document.getElementById('income-history');
+  if(!hist) return;
+  const monthly=L('wo_income_monthly')||{};
+  const defaultInc=L('wo_income')||0;
+  const entries=Object.entries(monthly).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6);
+  if(!entries.length && !defaultInc){ hist.innerHTML=''; return; }
+  hist.innerHTML=`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px">Income History</div>`
+    + (defaultInc?`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted)">Default (base)</span><span style="font-family:var(--mono);font-weight:700;color:var(--muted)">${fmt(defaultInc)}</span></div>`:'')
+    + entries.map(([mo,val])=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;${mo===CM?'font-weight:800;color:var(--blue2)':''}">${mLong(mo)}${mo===CM?' ◀':''}</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--green)">${fmt(val)}</span>
+        <button onclick="clearMonthIncome('${mo}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function clearMonthIncome(mo){
+  if(!confirm('Clear income for '+mLong(mo)+'?'))return;
+  const monthly=L('wo_income_monthly')||{};
+  delete monthly[mo];
+  S('wo_income_monthly',monthly);
+  refreshIncomeUI();
+  toast('Income cleared for '+mLong(mo));
 }
 
 // ════════════════ BOOT ════════════════
