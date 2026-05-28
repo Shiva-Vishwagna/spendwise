@@ -334,8 +334,8 @@ select option{background:var(--s2)}
       <div class="fg"><label>Due Date (day)</label><input type="number" id="emi-dd" placeholder="e.g. 5" min="1" max="31" inputmode="numeric"/></div>
     </div>
     <div class="ir">
-      <div class="fg"><label>Start Month</label><input type="month" id="emi-sm"/></div>
-      <div class="fg"><label>Total EMIs</label><input type="number" id="emi-t" placeholder="e.g. 36" inputmode="numeric"/></div>
+      <div class="fg"><label>EMIs Remaining</label><input type="number" id="emi-remaining" placeholder="e.g. 18" inputmode="numeric"/></div>
+      <div class="fg"><label>Total EMIs (optional)</label><input type="number" id="emi-t" placeholder="e.g. 36" inputmode="numeric"/></div>
     </div>
     <div class="ir">
       <div class="fg"><label>Interest % p.a.</label><input type="number" id="emi-r" placeholder="e.g. 8.5" step="0.1" inputmode="decimal"/></div>
@@ -555,26 +555,44 @@ function ord(n){const s=['th','st','nd','rd'],v=n%100;return s[(v-20)%10]||s[v]|
 function today(){return new Date().toISOString().split('T')[0];}
 function toast(msg,col='var(--green)'){const t=document.getElementById('toast');t.textContent=msg;t.style.borderColor=col;t.style.color=col;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200);}
 
-function emisDue(month){
-  const[y,m]=month.split('-').map(Number);
-  return getEMIs().filter(e=>{
-    if(!e.sm)return false;
+// Remaining-based EMI helpers — no start month needed
+function getEMIRemaining(e, month){
+  // If old format (has sm), compute from start month
+  if(e.sm && !e.remaining){
+    const[y,m]=month.split('-').map(Number);
     const[sy,sm2]=e.sm.split('-').map(Number);
     const el=(y-sy)*12+(m-sm2);
-    return el>=0&&el<e.tenure;
-  });
+    return Math.max((e.tenure||0)-el,0);
+  }
+  // New format: remaining was set at addedOn month, reduce by months passed
+  const addedOn=e.addedOn||todayMonth();
+  const[ay,am]=addedOn.split('-').map(Number);
+  const[y,m]=month.split('-').map(Number);
+  const passed=(y-ay)*12+(m-am);
+  return Math.max((e.remaining||0)-passed,0);
 }
+
+function emisDue(month){
+  return getEMIs().filter(e=>getEMIRemaining(e,month)>0);
+}
+
 function monthsLeft(e,month){
-  const[y,m]=month.split('-').map(Number);
-  const[sy,sm]=e.sm.split('-').map(Number);
-  const el=(y-sy)*12+(m-sm);
-  return Math.max(e.tenure-el,0);
+  return getEMIRemaining(e,month);
 }
+
 function monthsPaid(e,month){
+  if(e.sm && !e.remaining){
+    const[y,m]=month.split('-').map(Number);
+    const[sy,sm2]=e.sm.split('-').map(Number);
+    const el=(y-sy)*12+(m-sm2);
+    return Math.min(Math.max(el,0),e.tenure||0);
+  }
+  const addedOn=e.addedOn||todayMonth();
+  const[ay,am]=addedOn.split('-').map(Number);
   const[y,m]=month.split('-').map(Number);
-  const[sy,sm]=e.sm.split('-').map(Number);
-  const el=(y-sy)*12+(m-sm);
-  return Math.min(Math.max(el,0),e.tenure);
+  const passed=(y-ay)*12+(m-am);
+  const paid=Math.min(Math.max(passed,0),(e.total||e.remaining||0)-(e.remaining||0)+(Math.min(passed,e.remaining||0)));
+  return (e.total||e.remaining||0)-(e.remaining||0)+Math.min(passed,e.remaining||0);
 }
 
 // ════════════════ PIN ════════════════
@@ -659,8 +677,9 @@ function resetForms(){
   document.getElementById('cc-date').value=today();
   document.getElementById('sav-start').value=today();
   document.getElementById('sav-mat').value='';
-  const td=new Date();
-  document.getElementById('emi-sm').value=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
+  // EMI remaining reset
+  const emiRem=document.getElementById('emi-remaining');
+  if(emiRem) emiRem.value='';
 }
 function renderCatPills(){
   document.getElementById('cat-pills').innerHTML=CATS.map(c=>`
@@ -693,14 +712,15 @@ function addEMI(){
   const name=document.getElementById('emi-n').value.trim();
   const amt=parseFloat(document.getElementById('emi-a').value);
   const due=parseInt(document.getElementById('emi-dd').value)||1;
-  const sm2=document.getElementById('emi-sm').value;
-  const tenure=parseInt(document.getElementById('emi-t').value)||0;
+  const remaining=parseInt(document.getElementById('emi-remaining').value)||0;
+  const total=parseInt(document.getElementById('emi-t').value)||remaining;
   const rate=parseFloat(document.getElementById('emi-r').value)||0;
   const cat=document.getElementById('emi-cat').value;
-  if(!name||!amt||!sm2||!tenure){toast('Fill all required fields','var(--red)');return;}
+  if(!name||!amt||!remaining){toast('Name, amount and remaining EMIs are required','var(--red)');return;}
+  // Store as remaining-based — no start month needed
   const emis=getEMIs();
-  emis.push({id:Date.now(),name,amount:amt,due,sm:sm2,tenure,rate,cat});
-  setEMIs(emis);toast(`✓ ${name} EMI added!`);resetForms();
+  emis.push({id:Date.now(),name,amount:amt,due,remaining,total:total||remaining,rate,cat,addedOn:todayMonth()});
+  setEMIs(emis);toast(`✓ ${name} — ${remaining} EMIs remaining`);resetForms();
 }
 
 // ADD CC
@@ -864,7 +884,7 @@ function renderEMIDueCard(emis){
         <div class="row-icon" style="background:rgba(192,96,255,.12)">${EMJ[e.cat]||'📦'}</div>
         <div class="row-info">
           <div class="row-name">${e.name}</div>
-          <div class="row-sub">Due ${e.due}${ord(e.due)} · ${paid}/${e.tenure} paid · <span style="color:${left<=3?'var(--green)':'var(--muted)'}">${left} left</span></div>
+          <div class="row-sub">Due ${e.due}${ord(e.due)} · <span style="color:${left<=3?'var(--green)':left<=6?'var(--amber)':'var(--muted)'};font-weight:700">${left} EMIs remaining</span></div>
         </div>
         <div style="text-align:right">
           <div class="row-val" style="color:var(--purple)">${fmt(e.amount)}</div>
@@ -977,7 +997,7 @@ function renderEMI(){
   document.getElementById('emi-cards').innerHTML=closingHTML+sorted.map(e=>{
     const left=monthsLeft(e,CM);
     const paid=monthsPaid(e,CM);
-    const pct=Math.round((paid/e.tenure)*100);
+    const tot=e.total||e.tenure||e.remaining||1;const pct=Math.round(Math.min((paid/tot)*100,100));
     const isActive=left>0;
     const totalPaid=paid*e.amount;
     const totalLeft=left*e.amount;
@@ -993,25 +1013,18 @@ function renderEMI(){
           <div style="font-size:10px;color:${isActive?(cl?'var(--green)':'var(--muted)'):'var(--green)'};">${isActive?left+' payments left':'Completed ✓'}</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
-        <div style="background:var(--s3);border-radius:8px;padding:7px;text-align:center">
-          <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:var(--green)">${paid}</div>
-          <div style="font-size:9px;color:var(--muted)">PAID</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:var(--s3);border-radius:10px;padding:10px;text-align:center">
+          <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${cl?'var(--green)':isActive?'var(--amber)':'var(--green)'}">${isActive?left:'✓ Done'}</div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px">EMIs Remaining</div>
         </div>
-        <div style="background:var(--s3);border-radius:8px;padding:7px;text-align:center">
-          <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:${cl?'var(--green)':'var(--amber)'}">${isActive?left:'✓'}</div>
-          <div style="font-size:9px;color:var(--muted)">LEFT</div>
-        </div>
-        <div style="background:var(--s3);border-radius:8px;padding:7px;text-align:center">
-          <div style="font-size:12px;font-weight:800;font-family:var(--mono);color:var(--blue2)">${e.tenure}</div>
-          <div style="font-size:9px;color:var(--muted)">TOTAL</div>
+        <div style="background:var(--s3);border-radius:10px;padding:10px;text-align:center">
+          <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(totalLeft)}</div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px">Amount Pending</div>
         </div>
       </div>
-      <div class="pbar" style="margin-bottom:6px"><div class="pbar-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--purple),var(--blue2))"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
-        <span>Paid: <strong style="color:var(--text);font-family:var(--mono)">${fmt(totalPaid)}</strong></span>
-        <span>Pending: <strong style="color:var(--text);font-family:var(--mono)">${fmt(totalLeft)}</strong></span>
-      </div>
+      ${(e.total&&e.total>left)?`<div class="pbar" style="margin-bottom:6px"><div class="pbar-fill" style="width:${Math.round((1-left/e.total)*100)}%;background:linear-gradient(90deg,var(--purple),var(--blue2))"></div></div>
+      <div style="font-size:10px;color:var(--muted);text-align:right">${Math.round((1-left/e.total)*100)}% complete</div>`:''}
       ${cl?`<div class="alert green" style="margin-top:8px"><div style="font-size:14px">🎉</div><div style="font-size:11px;font-weight:700;color:var(--green)">${left} payment${left>1?'s':''} to go! Frees up ${fmt(e.amount)}/mo</div></div>`:''}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         <button onclick="editEMI(${e.id})" style="flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ Edit</button>
@@ -1370,6 +1383,7 @@ function editEMI(id){
   modalType='emi'; modalItem=e;
   modalDelFn=()=>{setEMIs(getEMIs().filter(x=>x.id!==id));closeModal();renderEMI();renderDash();toast('🗑 Removed','var(--red)');};
   document.getElementById('modal-title').textContent='✏️ Edit EMI';
+  const curRemaining=getEMIRemaining(e,CM);
   document.getElementById('modal-body').innerHTML=`
     <div class="fg"><label>Name</label><input id="me-emi-n" value="${e.name}"/></div>
     <div class="ir">
@@ -1377,10 +1391,9 @@ function editEMI(id){
       <div class="fg"><label>Due Date (day)</label><input type="number" id="me-emi-due" value="${e.due}" min="1" max="31" inputmode="numeric"/></div>
     </div>
     <div class="ir">
-      <div class="fg"><label>Total EMIs</label><input type="number" id="me-emi-t" value="${e.tenure}" inputmode="numeric"/></div>
+      <div class="fg"><label>EMIs Remaining (as of now)</label><input type="number" id="me-emi-rem" value="${curRemaining}" inputmode="numeric"/></div>
       <div class="fg"><label>Interest % p.a.</label><input type="number" id="me-emi-r" value="${e.rate||0}" step="0.1" inputmode="decimal"/></div>
-    </div>
-    <div class="fg"><label>Start Month</label><input type="month" id="me-emi-sm" value="${e.sm}"/></div>`;
+    </div>`;
   document.getElementById('edit-modal').style.display='block';
 }
 
@@ -1457,13 +1470,15 @@ function modalSave(){
     const emis=getEMIs();
     const idx=emis.findIndex(x=>x.id===modalItem.id);
     if(idx<0)return;
+    const newRemaining=parseInt(document.getElementById('me-emi-rem').value)||0;
     emis[idx]={...emis[idx],
       name:document.getElementById('me-emi-n').value.trim(),
       amount:parseFloat(document.getElementById('me-emi-a').value)||emis[idx].amount,
       due:parseInt(document.getElementById('me-emi-due').value)||emis[idx].due,
-      tenure:parseInt(document.getElementById('me-emi-t').value)||emis[idx].tenure,
+      remaining:newRemaining,
+      total:Math.max(emis[idx].total||0, (emis[idx].total||0)-(emis[idx].remaining||0)+newRemaining),
       rate:parseFloat(document.getElementById('me-emi-r').value)||0,
-      sm:document.getElementById('me-emi-sm').value,
+      addedOn:CM, // reset reference point to now
     };
     setEMIs(emis); closeModal(); renderEMI(); renderDash(); toast('✓ EMI updated!');
   } else if(modalType==='sav'){
