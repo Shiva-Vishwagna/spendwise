@@ -1919,9 +1919,9 @@ function renderReport(){
   const weeklyMax = Math.max(...weeks.map(w=>w.spent),1);
 
   // ── Savings planner ───────────────────────────────────────────────────
-  const income2 = getIncome(CM);
-  const incEntries = getIncomeEntries().reduce((s,e)=>s+e.amount,0);
-  const effectInc = incEntries || income2;
+  const savPlanInc = getIncome(CM);
+  const savPlanIncEntries = getIncomeEntries().reduce((s,e)=>s+e.amount,0);
+  const effectInc = savPlanIncEntries || savPlanInc;
   const totalEMI2 = emisDue(CM).reduce((s,e)=>s+e.amount,0);
   const totalCC2  = getCCSpends().reduce((s,c)=>s+c.amount,0);
   const totalExp2 = getTxns().reduce((s,t)=>s+t.amount,0);
@@ -2035,7 +2035,7 @@ function renderReport(){
 
   // Top stats
   const cur=months[months.length-1];
-  const income2=getIncome();
+  const incomeRpt=getIncome();
   document.getElementById('report-top').innerHTML=`
     <div class="hero" style="margin-bottom:10px">
       <div class="hero-lbl">${mLong(CM)} Financial Summary</div>
@@ -2043,7 +2043,7 @@ function renderReport(){
         <div><div style="font-size:10px;color:var(--muted)">Total Expenses</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--red)">${fmt(cur.exp+cur.cc)}</div></div>
         <div><div style="font-size:10px;color:var(--muted)">EMI Outflow</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--purple)">${fmt(cur.emi)}</div></div>
         <div><div style="font-size:10px;color:var(--muted)">Total Outflow</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--amber)">${fmt(cur.total)}</div></div>
-        <div><div style="font-size:10px;color:var(--muted)">${income2?'Disposable':'Monthly SIP'}</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--green)">${income2?fmt(Math.max(income2-cur.total,0)):fmt(cur.sip)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">${incomeRpt?'Disposable':'Monthly SIP'}</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--green)">${incomeRpt?fmt(Math.max(incomeRpt-cur.total,0)):fmt(cur.sip)}</div></div>
       </div>
     </div>`;
 
@@ -2059,7 +2059,7 @@ function renderReport(){
   // Insights
   const insights=[];
   const thisMonthIncEntries = getIncomeEntries();
-  const totalIncThisMonth = thisMonthIncEntries.reduce((s,e)=>s+e.amount,0) || income2;
+  const totalIncThisMonth = thisMonthIncEntries.reduce((s,e)=>s+e.amount,0) || incomeRpt;
   const incSources = [...new Set(thisMonthIncEntries.map(e=>e.source))];
   if(incSources.length>1){
     insights.push({type:'tip',icon:'💰',title:`${incSources.length} income sources this month`,body:`${thisMonthIncEntries.map(e=>`${INC_SOURCES_GLOBAL[e.source]}: ${fmt(e.amount)}`).join(', ')}. Total: ${fmt(totalIncThisMonth)}`});
@@ -2069,9 +2069,9 @@ function renderReport(){
   const ccTotal=getCCSpends().reduce((s,c)=>s+c.amount,0);
   const expTotal=getTxns().reduce((s,t)=>s+t.amount,0);
 
-  if(income2){
-    const savRate=(income2-cur.total)/income2*100;
-    insights.push({type:savRate>20?'good':savRate>0?'warn':'bad',icon:'💰',title:`Saving ${savRate.toFixed(0)}% of income`,body:savRate>20?'Excellent! You\'re saving more than 20% of your income.':savRate>0?`You have ${fmt(income2-cur.total)} left after all expenses. Try to increase savings.`:'You\'re spending more than you earn this month. Review your expenses.'});
+  if(incomeRpt){
+    const savRate=(incomeRpt-cur.total)/incomeRpt*100;
+    insights.push({type:savRate>20?'good':savRate>0?'warn':'bad',icon:'💰',title:`Saving ${savRate.toFixed(0)}% of income`,body:savRate>20?'Excellent! You\'re saving more than 20% of your income.':savRate>0?`You have ${fmt(incomeRpt-cur.total)} left after all expenses. Try to increase savings.`:'You\'re spending more than you earn this month. Review your expenses.'});
   }
 
   const closing=getEMIs().filter(e=>monthsLeft(e,CM)>0&&monthsLeft(e,CM)<=3);
@@ -2081,7 +2081,7 @@ function renderReport(){
   }
 
   if(totalAllEMI>0){
-    insights.push({type:'tip',icon:'🔁',title:`Total EMI commitment: ${fmt(totalAllEMI)}`,body:`You have ${fmt(totalAllEMI)} pending across all loans. ${income2?`That's ${Math.round(totalAllEMI/(income2*12)*100)}% of your annual income.`:''}`});
+    insights.push({type:'tip',icon:'🔁',title:`Total EMI commitment: ${fmt(totalAllEMI)}`,body:`You have ${fmt(totalAllEMI)} pending across all loans. ${incomeRpt?`That's ${Math.round(totalAllEMI/(incomeRpt*12)*100)}% of your annual income.`:''}`});
   }
 
   if(ccTotal>0){
