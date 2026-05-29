@@ -1,26 +1,44 @@
 {
-  "name": "SpendWise",
+  "name": "SpendWise — Finance OS",
   "short_name": "SpendWise",
-  "description": "Smart monthly budget tracker with AI insights",
-  "start_url": "/spendwise/index.html",
-  "scope": "/spendwise/",
+  "description": "Personal finance tracker: expenses, EMIs, investments, savings and AI adviser.",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0F172A",
-  "theme_color": "#0F172A",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
+  "background_color": "#09090f",
+  "theme_color": "#09090f",
+  "lang": "en",
   "categories": ["finance", "productivity"],
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230F172A'/><text x='50%' y='55%' font-size='120' text-anchor='middle' dominant-baseline='middle'>💳</text></svg>",
+      "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230F172A'/><text x='50%' y='55%' font-size='320' text-anchor='middle' dominant-baseline='middle'>💳</text></svg>",
+      "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Add Expense",
+      "short_name": "Expense",
+      "description": "Quickly log an expense",
+      "url": "./index.html#expense",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "View Report",
+      "short_name": "Report",
+      "description": "See this month's report",
+      "url": "./index.html#report",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
