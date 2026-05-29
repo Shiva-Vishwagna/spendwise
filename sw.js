@@ -1,74 +1,62 @@
-// SpendWise Service Worker v1
-const CACHE = 'spendwise-v1';
+// SpendWise Service Worker v2
+const CACHE = 'spendwise-v2';
+const APP_SHELL = ['./index.html', './manifest.json'];
 
-// Files to cache for offline use
-const PRECACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  'https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap'
-];
-
-// Install — precache core files
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE).then(cache => {
-      // Cache what we can, ignore failures (e.g. fonts may need network)
-      return Promise.allSettled(PRECACHE.map(url => cache.add(url)));
-    }).then(() => self.skipWaiting())
+self.addEventListener('install', function(e) {
+  e.waitUntil(
+    caches.open(CACHE).then(function(cache) {
+      return cache.addAll(APP_SHELL);
+    }).then(function() {
+      return self.skipWaiting();
+    })
   );
 });
 
-// Activate — clean up old caches
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+self.addEventListener('activate', function(e) {
+  e.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
   );
 });
 
-// Fetch — cache-first for app shell, network-first for everything else
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+self.addEventListener('fetch', function(e) {
+  // Only handle GET
+  if (e.request.method !== 'GET') return;
 
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
+  var url = e.request.url;
 
-  // For the Anthropic API — always go network (never cache AI calls)
-  if (url.hostname === 'api.anthropic.com') return;
+  // Never intercept Anthropic API calls
+  if (url.indexOf('api.anthropic.com') !== -1) return;
 
-  // For Google Fonts — stale-while-revalidate
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(event.request).then(cached => {
-          const fresh = fetch(event.request).then(res => {
-            cache.put(event.request, res.clone());
-            return res;
-          }).catch(() => cached);
-          return cached || fresh;
-        })
-      )
-    );
-    return;
-  }
+  // Never intercept chrome-extension or non-http
+  if (url.indexOf('http') !== 0) return;
 
-  // App shell — cache-first, fall back to network
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        if (res.ok) {
-          caches.open(CACHE).then(cache => cache.put(event.request, res.clone()));
+  e.respondWith(
+    caches.match(e.request).then(function(cached) {
+      // Always try network first, fall back to cache
+      var networkFetch = fetch(e.request).then(function(response) {
+        // Only cache valid same-origin or CORS responses, and only clone once
+        if (response && response.status === 200 &&
+            (response.type === 'basic' || response.type === 'cors')) {
+          var toCache = response.clone();
+          caches.open(CACHE).then(function(cache) {
+            cache.put(e.request, toCache);
+          });
         }
-        return res;
-      }).catch(() => {
-        // Offline fallback — return index.html for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
+        return response;
+      }).catch(function() {
+        // Network failed — return cache if available
+        return cached;
       });
+
+      // Return cache immediately if we have it, but still refresh in background
+      return cached || networkFetch;
     })
   );
 });
