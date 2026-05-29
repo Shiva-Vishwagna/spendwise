@@ -869,6 +869,23 @@ function renderHome() {
       </div>
     </div>
 
+    <!-- NEXT MONTH INCOME PREVIEW (if set) -->
+    ${(()=>{
+      const next = new Date(year, month+1, 1);
+      const nKey = monthKey(next.getFullYear(), next.getMonth());
+      const nIncome = SW.data.income[nKey];
+      if (!nIncome) return '';
+      const nLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][next.getMonth()] + ' ' + next.getFullYear();
+      return `<div style="background:#fbbf2410;border:1px solid #fbbf2435;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectMonth(${next.getFullYear()},${next.getMonth()})">
+        <div style="font-size:1.4rem">⏭</div>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:600;color:var(--amber)">Next Month Income Pre-set</div>
+          <div style="font-size:.75rem;color:var(--text3);margin-top:2px">${nLabel} · Tap to view that month's budget</div>
+        </div>
+        <div style="font-family:var(--font-mono);color:var(--amber);font-size:1rem">${fmt(nIncome)}</div>
+      </div>`;
+    })()}
+
     <!-- 6 MONTH CHART -->
     <div class="card fade-in" style="animation-delay:.15s">
       <div class="section-head" style="margin-bottom:16px">
@@ -1528,24 +1545,66 @@ function openAddModal(type = null) {
   }
   else if (type === 'income') {
     title.textContent = '💼 Add Income';
-    const mKey = monthKey(SW.selectedMonth.year, SW.selectedMonth.month);
-    const existing = SW.data.income[mKey] || 0;
+    // Build month options: past 3 months, current, next 2 months
+    const now = new Date();
+    const mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const mShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const monthOptions = [];
+    for (let i = -3; i <= 2; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const y = d.getFullYear(), m = d.getMonth();
+      const k = monthKey(y, m);
+      const isSelected = (y === SW.selectedMonth.year && m === SW.selectedMonth.month);
+      const isCurrent = (i === 0);
+      const isNext = (i > 0);
+      const label = mNames[m] + ' ' + y + (isCurrent ? ' (this month)' : isNext ? ' ⏭ next month' : '');
+      monthOptions.push({y, m, k, label, isSelected, isNext, isCurrent});
+    }
+    // Default to current month
+    const defaultKey = monthKey(SW.selectedMonth.year, SW.selectedMonth.month);
+    const existing = SW.data.income[defaultKey] || 0;
+
     body.innerHTML = `
-      <div style="background:var(--card2);border-radius:var(--r);padding:12px;margin-bottom:16px;font-size:.82rem;color:var(--text2)">
-        Current income for this month: <strong>${fmt(existing)}</strong>
+      <div class="form-group">
+        <label class="form-label">Credit Month</label>
+        <select class="form-select" id="f_inc_month" onchange="incomeMonthChanged()">
+          ${monthOptions.map(o => `<option value="${o.k}" ${o.isSelected?'selected':''}
+            data-next="${o.isNext}">${o.label}</option>`).join('')}
+        </select>
+        <div class="form-hint" id="f_inc_month_hint"></div>
+      </div>
+      <div id="f_inc_early_badge" style="display:none;background:#fbbf2412;border:1px solid #fbbf2440;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.8rem;color:var(--amber);display:none">
+        ⏭ <strong>Early credit detected.</strong> This salary will be counted in the selected future month's budget, but your account balance updates today.
+      </div>
+      <div style="background:var(--card2);border-radius:var(--r);padding:12px;margin-bottom:16px;font-size:.82rem;color:var(--text2)" id="f_inc_existing_info">
+        Current income set for this month: <strong>${fmt(existing)}</strong>
       </div>
       <div class="form-group"><label class="form-label">Income Amount (₹)</label>
         <input class="form-input" type="number" id="f_income" placeholder="e.g. 75000" value="${existing||''}" /></div>
+      <div class="form-group"><label class="form-label">Income Type</label>
+        <select class="form-select" id="f_inc_type">
+          <option value="salary">💼 Salary</option>
+          <option value="freelance">💻 Freelance / Side Income</option>
+          <option value="bonus">🎁 Bonus</option>
+          <option value="rental">🏠 Rental Income</option>
+          <option value="interest">🏦 Interest / Dividend</option>
+          <option value="other">📦 Other</option>
+        </select></div>
       <div class="form-group"><label class="form-label">Credit to Account (optional)</label>
         <select class="form-select" id="f_inc_acc">
-          <option value="">Don't update any account</option>${accOpts}
-        </select></div>
-      <div class="form-group"><label class="form-label">Also set as default?</label>
+          <option value="">Don't update any account balance</option>${accOpts}
+        </select>
+        <div class="form-hint">Account balance updates immediately. Budget is counted in the selected month.</div>
+      </div>
+      <div class="form-group"><label class="form-label">Also set as default monthly income?</label>
         <select class="form-select" id="f_inc_def">
           <option value="no">No — just for this month</option>
-          <option value="yes">Yes — set as default income</option>
+          <option value="yes">Yes — use for all months without specific income</option>
         </select></div>
-      <button class="submit-btn" onclick="saveIncome()">Save Income</button>`;
+      <button class="submit-btn" onclick="saveIncome()">💾 Save Income</button>`;
+
+    // Trigger hint update on load
+    setTimeout(incomeMonthChanged, 50);
   }
   else if (type === 'emi') {
     title.textContent = '🔁 Add EMI / Loan';
@@ -1708,18 +1767,69 @@ function saveExpense() {
   showToast(`✅ ₹${amt.toLocaleString('en-IN')} expense added${acc?' from '+acc.name:''}`, 'success');
 }
 
+function incomeMonthChanged() {
+  const sel = document.getElementById('f_inc_month');
+  if (!sel) return;
+  const opt = sel.options[sel.selectedIndex];
+  const isNext = opt?.dataset?.next === 'true';
+  const mKey = sel.value;
+  const existing = SW.data.income[mKey] || 0;
+
+  // Update existing info
+  const info = document.getElementById('f_inc_existing_info');
+  if (info) info.innerHTML = `Income already set for this month: <strong>${fmt(existing)}</strong>`;
+  if (existing > 0) {
+    document.getElementById('f_income').value = existing;
+  }
+
+  // Show/hide early badge
+  const badge = document.getElementById('f_inc_early_badge');
+  if (badge) badge.style.display = isNext ? 'block' : 'none';
+
+  // Hint
+  const hint = document.getElementById('f_inc_month_hint');
+  if (hint) {
+    if (isNext) {
+      hint.innerHTML = '⏭ Salary credited early? Select next month — it counts in that month\'s budget.';
+      hint.style.color = 'var(--amber)';
+    } else {
+      hint.textContent = '';
+    }
+  }
+}
+
 function saveIncome() {
   const amt = parseFloat(document.getElementById('f_income').value);
   if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
   const accId = document.getElementById('f_inc_acc').value;
   const setDefault = document.getElementById('f_inc_def').value === 'yes';
-  const mKey = monthKey(SW.selectedMonth.year, SW.selectedMonth.month);
+  const incType = document.getElementById('f_inc_type')?.value || 'salary';
+
+  // Use the month the user selected (could be next month)
+  const mKey = document.getElementById('f_inc_month')?.value
+    || monthKey(SW.selectedMonth.year, SW.selectedMonth.month);
+
+  const [mYear, mMon] = mKey.split('-').map(Number);
+  const isNextMonth = (mYear > SW.selectedMonth.year)
+    || (mYear === SW.selectedMonth.year && mMon > SW.selectedMonth.month + 1);
+  const isFuture = mYear * 12 + mMon > SW.selectedMonth.year * 12 + (SW.selectedMonth.month + 1);
+
   SW.data.income[mKey] = amt;
   if (setDefault) SW.data.settings.defaultIncome = amt;
-  if (accId) creditToAccount(accId, amt, 'Salary/Income', todayStr());
+
+  // Account balance updates today regardless of which month is selected
+  const incTypeLabels = {salary:'Salary',freelance:'Freelance',bonus:'Bonus',rental:'Rental',interest:'Interest/Dividend',other:'Income'};
+  if (accId) creditToAccount(accId, amt, (incTypeLabels[incType]||'Income') + (isFuture ? ' (next month, early credit)' : ''), todayStr());
+
   saveData(); renderAll();
   closeModal('addModal');
-  showToast(`✅ Income set to ${fmt(amt)}`, 'success');
+
+  const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const label = mNames[mMon - 1] + ' ' + mYear;
+  const msg = isFuture
+    ? `✅ ${fmt(amt)} saved for ${label}. Account credited today!`
+    : `✅ Income set to ${fmt(amt)} for ${label}`;
+  showToast(msg, 'success');
 }
 
 function saveEMI() {
