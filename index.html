@@ -327,6 +327,60 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .toast.am{border-color:var(--am);color:var(--am)}
 @keyframes fi2{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .fi2{animation:fi2 .24s ease both}
+/* ── SMS / CSV IMPORT ── */
+.import-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:15px}
+textarea.fi{resize:vertical;min-height:90px;font-family:var(--fm);font-size:.75rem;line-height:1.5}
+.parse-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--card2);
+  border-radius:var(--rr);border:1px solid var(--border);margin-bottom:4px;font-size:.74rem}
+.parse-row.skip{opacity:.4}
+.parse-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--ac);flex-shrink:0;margin-top:2px}
+.parse-desc{flex:1;min-width:0;font-size:.8rem;font-weight:500}
+.parse-sub{font-size:.62rem;color:var(--t3);margin-top:1px}
+.parse-amt{font-family:var(--fm);font-size:.84rem;color:var(--r);white-space:nowrap;font-weight:600}
+.parse-cat-sel{font-size:.6rem;background:var(--card);border:1px solid var(--b2);border-radius:5px;color:var(--t2);padding:2px 4px;margin-top:3px;max-width:90px}
+.import-badge{background:var(--g)18;color:var(--g);border:1px solid var(--g)36;border-radius:20px;padding:2px 9px;font-size:.68rem;font-weight:600}
+
+/* ── REAL-TIME TICKER ── */
+.rt-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--rr);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.rt-pulse{width:7px;height:7px;border-radius:50%;background:var(--g);animation:rtpulse 2s infinite;flex-shrink:0}
+@keyframes rtpulse{0%,100%{opacity:1;box-shadow:0 0 0 0 #10d9a040}50%{opacity:.5;box-shadow:0 0 0 5px transparent}}
+.rt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.rt-val{font-family:var(--fm);font-size:.9rem;font-weight:600}
+.rt-lbl{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+
+/* ── SPLIT EXPENSE ── */
+.split-member{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card2);border-radius:var(--rr);margin-bottom:5px;border:1px solid var(--border)}
+.split-name{flex:1;font-size:.8rem}
+.split-amt{font-family:var(--fm);font-size:.8rem;color:var(--am);min-width:70px;text-align:right}
+
+/* ── RECURRING MANAGER ── */
+.rec-item{background:var(--card2);border:1px solid var(--border);border-radius:var(--rr);padding:10px 12px;display:flex;align-items:center;gap:9px;margin-bottom:5px}
+.rec-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--ac)}
+.rec-name{flex:1;font-size:.8rem;font-weight:500}
+.rec-meta{font-size:.62rem;color:var(--t3)}
+.rec-amt{font-family:var(--fm);font-size:.82rem;color:var(--r);white-space:nowrap}
+
+/* ── CATEGORY BUDGET RING ── */
+.ring-wrap{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.ring-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--rr);padding:10px;text-align:center}
+.ring-label{font-size:.62rem;color:var(--t3);margin-top:5px}
+.ring-val{font-family:var(--fm);font-size:.82rem;font-weight:600;margin-top:1px}
+.ring-pct{font-size:.6rem;color:var(--t3)}
+
+/* ── FINANCIAL CALENDAR ── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-day{aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.65rem;position:relative;cursor:pointer}
+.cal-day.has-spend{background:var(--r)18;color:var(--r);font-weight:600}
+.cal-day.has-income{background:var(--g)18;color:var(--g)}
+.cal-day.today{border:1.5px solid var(--ac);color:var(--ac)}
+.cal-day.other-month{opacity:.25}
+.cal-day-hdr{font-size:.58rem;color:var(--t3);text-align:center;padding:2px 0}
+.cal-dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:3px;height:3px;border-radius:50%;background:var(--am)}
+
+/* ── PAGE IMPORT ── */
+#pgImport{display:none}
+#pgImport.on{display:block}
+
 @media(min-width:520px){
   .cnt{padding-left:calc((100vw - 520px)/2 + 12px);padding-right:calc((100vw - 520px)/2 + 12px)}
   .bnav{justify-content:center}
@@ -435,6 +489,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   <div id="pgReport"  class="pg">   <div class="cnt" id="cReport"></div></div>
   <div id="pgAdviser" class="pg">   <div class="cnt" id="cAdviser"></div></div>
   <div id="pgCashFlow" class="pg">  <div class="cnt" id="cCashFlow"></div></div>
+  <div id="pgImport"   class="pg">   <div class="cnt" id="cImport"></div></div>
 
   <div class="bnav">
     <div class="ni on" id="nHome"    onclick="openPage('Home')">   <div class="niic">🏠</div><div class="nilb">Home</div></div>
@@ -787,6 +842,522 @@ function pd() {
 // ══════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  REAL-TIME SPEND HELPERS
+// ══════════════════════════════════════════════════════════
+function getTodaySpend() {
+  const today = td();
+  return D.data.expenses.filter(e=>e.date===today).reduce((s,e)=>s+e.amount,0);
+}
+function getWeekSpend() {
+  const now = new Date();
+  const ago = new Date(now); ago.setDate(ago.getDate()-6);
+  const from = ago.toISOString().split('T')[0];
+  return D.data.expenses.filter(e=>e.date>=from&&e.date<=td()).reduce((s,e)=>s+e.amount,0);
+}
+
+// ══════════════════════════════════════════════════════════
+//  MERCHANT → CATEGORY AUTO-GUESSER
+// ══════════════════════════════════════════════════════════
+const MERCHANT_CATS = [
+  [/swiggy|zomato|domino|pizza|burger|kfc|mcdonalds|cafe|coffee|tea|biryani|eatclub|faasos|box8/i,'food'],
+  [/bigbasket|blinkit|grofer|zepto|jiomart|dmart|more|supermart|grocery|kirana|superstore/i,'groceries'],
+  [/swiggy dineout|zomato dining|dineout|restaurant|barbeque|buffet|dhaba/i,'dining'],
+  [/uber|ola|rapido|namma|metro|bus|auto|cab|ixigo|irctc|train|railway/i,'transport'],
+  [/petrol|diesel|fuel|hp petro|bpcl|iocl|shell|indian oil|nayara/i,'fuel'],
+  [/amazon|flipkart|myntra|ajio|meesho|snapdeal|tata cliq|jiomart shopping|lifestyle|westside|h&m/i,'shopping'],
+  [/electricity|water|gas|airtel|jio|vi |vodafone|bsnl|internet|broadband|bill payment|billdesk|recharge/i,'bills'],
+  [/doctor|hospital|clinic|pharmacy|medplus|apollo|max health|fortis|diagnostic|lab|medicover|cipla/i,'health'],
+  [/netflix|amazon prime|hotstar|spotify|youtube premium|pvr|inox|bookmyshow|game|steam/i,'entertainment'],
+  [/makemytrip|goibibo|yatra|cleartrip|airline|flight|hotel|oyo|airbnb|booking\.com|agoda/i,'travel'],
+  [/recharge|mobile recharge|sim|prepaid|postpaid/i,'recharge'],
+  [/gym|cult\.fit|fitternity|yoga|crossfit|sport/i,'gym'],
+  [/lic|insurance|policy|premium|sbi life|hdfc life|icici pru|bajaj allianz/i,'insurance'],
+  [/rent|pg payment|society maintenance|housing society/i,'rent'],
+  [/school|college|university|tuition|coaching|udemy|coursera|skill|education/i,'education'],
+  [/emi|loan|home loan|car loan|personal loan/i,'emi'],
+];
+function guessCategory(desc) {
+  const d = (desc||'').toLowerCase();
+  for (const [re,cat] of MERCHANT_CATS) { if(re.test(d)) return cat; }
+  return 'other';
+}
+
+// ══════════════════════════════════════════════════════════
+//  SMS PARSER — Indian bank SMS formats
+// ══════════════════════════════════════════════════════════
+const SMS_PATTERNS = [
+  // HDFC debited
+  /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:has been\s+)?debited/i,
+  // debited INR/Rs X
+  /debited\s+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+  // spent Rs X at
+  /spent\s+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+  // paid Rs X to
+  /(?:paid|transferred)\s+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+  // Rs 1234 debited (SBI/Kotak)
+  /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:debited|deducted|paid)/i,
+  // Info: your A/c has been debited by Rs X
+  /debited\s+by\s+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+  // UPI: X debited for Y
+  /([\d,]+(?:\.\d{1,2})?)\s+(?:has been\s+)?debited/i,
+];
+
+function extractAmtFromSMS(line) {
+  for (const pat of SMS_PATTERNS) {
+    const m = line.match(pat);
+    if (m) {
+      const v = parseFloat(m[1].replace(/,/g,''));
+      if (v > 0 && v < 10000000) return v;
+    }
+  }
+  return 0;
+}
+
+function extractDescFromSMS(line) {
+  // Try to get merchant / to name
+  const patterns = [
+    /(?:at|to|for|Info:)\s+([A-Za-z0-9 &._\-*]+?)(?:\s+on|\s+Ref|\s+UPI|\s+txn|\s+dated|\s*\.|$)/i,
+    /UPI-([A-Za-z0-9 &._\-]+)/i,
+    /trf\s+to\s+([A-Za-z0-9 ]+)/i,
+  ];
+  for (const p of patterns) {
+    const m = line.match(p);
+    if (m && m[1] && m[1].trim().length > 2) return m[1].trim().slice(0,50);
+  }
+  // Fallback: extract bank name
+  const bank = line.match(/(HDFC|ICICI|SBI|Axis|Kotak|YES|IDFC|IndusInd|Federal|BOB|PNB|Canara)/i);
+  return bank ? bank[1]+' transaction' : 'Bank debit';
+}
+
+function extractDateFromSMS(line) {
+  const patterns = [
+    /(\d{2})[\/\-](\d{2})[\/\-](\d{2,4})/,   // dd-mm-yy
+    /(\d{2})-([A-Za-z]{3})-(\d{2,4})/,         // dd-Mon-yy
+    /on\s+(\d{1,2})\s+([A-Za-z]+)\s*'?(\d{2,4})/i,
+  ];
+  const now = new Date(); const today = td();
+  for (const p of patterns) {
+    const m = line.match(p);
+    if (!m) continue;
+    try {
+      // Try numeric: dd-mm-yy
+      if (/\d/.test(m[2])) {
+        let [,d,mo,yr]=m;
+        if (yr.length===2) yr='20'+yr;
+        const dt = new Date(yr,mo-1,d);
+        if (!isNaN(dt)) return dt.toISOString().split('T')[0];
+      } else {
+        // dd-Mon-yy
+        const dt = new Date(m[0].replace(/[\/\-]/g,' '));
+        if (!isNaN(dt)) return dt.toISOString().split('T')[0];
+      }
+    } catch(e){}
+  }
+  return today;
+}
+
+function parseSMSBulk(text) {
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>8);
+  const results = [];
+  const seen = new Set();
+  for (const line of lines) {
+    const amount = extractAmtFromSMS(line);
+    if (!amount) continue;
+    const desc = extractDescFromSMS(line);
+    const date = extractDateFromSMS(line);
+    const category = guessCategory(desc + ' ' + line);
+    const key = `${amount}-${date}-${desc.slice(0,8)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({ id:uid(), amount, desc, date, category, raw:line.slice(0,100) });
+  }
+  return results;
+}
+
+// ══════════════════════════════════════════════════════════
+//  CSV STATEMENT PARSER — HDFC, ICICI, SBI, Axis
+// ══════════════════════════════════════════════════════════
+function splitCSVLine(line) {
+  const cols=[]; let cur=''; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){inQ=!inQ;continue;}
+    if(ch===','&&!inQ){cols.push(cur.trim());cur='';continue;}
+    cur+=ch;
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+function parseDateStr(s) {
+  s=(s||'').replace(/"/g,'').trim();
+  let m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if(m){let[,d,mo,y]=m;if(y.length===2)y='20'+y;return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m)return s;
+  // Try JS Date parse
+  const dt=new Date(s);
+  if(!isNaN(dt))return dt.toISOString().split('T')[0];
+  return '';
+}
+function parseAmt(s){const v=parseFloat((s+'').replace(/[₹,\s"]/g,''));return isNaN(v)?0:Math.abs(v);}
+
+function parseCSVStatement(text) {
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const results=[];
+  // Find header row
+  let headerIdx=0;
+  for(let i=0;i<Math.min(lines.length,15);i++){
+    const l=lines[i].toLowerCase();
+    if(l.includes('narration')||l.includes('description')||l.includes('withdrawal')||l.includes('debit')){
+      headerIdx=i; break;
+    }
+  }
+  const headers=splitCSVLine(lines[headerIdx]).map(h=>h.replace(/"/g,'').trim().toLowerCase());
+  // Identify column indices
+  const dateCol = headers.findIndex(h=>h.includes('date')||h.includes('txn'));
+  const descCol = headers.findIndex(h=>h.includes('narration')||h.includes('description')||h.includes('particulars')||h.includes('details'));
+  const debitCol= headers.findIndex(h=>h.includes('withdrawal')||h.includes('debit')||h.includes('dr'));
+  const seen=new Set();
+  for(const line of lines.slice(headerIdx+1)){
+    const cols=splitCSVLine(line);
+    if(cols.length<3)continue;
+    const date=parseDateStr(cols[dateCol>=0?dateCol:0]);
+    const desc=(cols[descCol>=0?descCol:1]||'').replace(/"/g,'').trim();
+    let amount=0;
+    if(debitCol>=0){amount=parseAmt(cols[debitCol]);}
+    else{// scan cols for a positive number that looks like a debit
+      for(const ci of[4,3,5,2,6]){const v=parseAmt(cols[ci]);if(v>0&&v<10000000){amount=v;break;}}}
+    if(!amount||amount<=0)continue;
+    if(!date)continue;
+    if(!desc||desc.length<2)continue;
+    const key=`${amount}-${date}-${desc.slice(0,8)}`;
+    if(seen.has(key))continue;
+    seen.add(key);
+    results.push({id:uid(),amount,desc:desc.slice(0,60),date,category:guessCategory(desc),raw:line.slice(0,80)});
+  }
+  return results;
+}
+
+// ══════════════════════════════════════════════════════════
+//  IMPORT PAGE STATE
+// ══════════════════════════════════════════════════════════
+let _importRows=[];
+let _importTab='sms'; // 'sms' | 'csv'
+
+function renderImport() {
+  const pg=document.getElementById('cImport'); if(!pg) return;
+  const selCount=_importRows.filter(r=>r.selected).length;
+  const accs=D.data.accounts;
+  const accOpts=accs.map(a=>`<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
+  const ccOpts=D.data.ccCards.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+  pg.innerHTML=`
+  <div class="hero fi2" style="padding:16px">
+    <div class="hl">Smart Import</div>
+    <div class="ha" style="font-size:1.4rem">📲 SMS & Statement Import</div>
+    <div class="ht">Parse bank SMS alerts or upload CSV statement — zero manual entry</div>
+  </div>
+
+  <div class="card fi2">
+    <div class="tabrow" style="margin-bottom:14px">
+      <button class="tab ${_importTab==='sms'?'on':''}" onclick="_importTab='sms';renderImport()">📱 Paste SMS</button>
+      <button class="tab ${_importTab==='csv'?'on':''}" onclick="_importTab='csv';renderImport()">📄 CSV Statement</button>
+    </div>
+
+    ${_importTab==='sms'?`
+    <div class="notice bl" style="margin-bottom:12px">
+      <span>💡</span>
+      <div>Works with HDFC, ICICI, SBI, Axis, Kotak, Yes Bank, UPI alerts. Paste multiple SMS in one go — amounts, dates & categories auto-detected.</div>
+    </div>
+    <div class="fg">
+      <label class="fl">Paste SMS Messages</label>
+      <textarea class="fi" id="smsText" rows="7" placeholder="Paste one or more bank/CC SMS here. Example:
+
+HDFC Bank: INR 1,234.00 debited from A/c **1234 to Swiggy on 29-06-25.
+Your ICICI Bank A/c XXXX1234: Rs 850.00 debited on 29-Jun-25 at BLINKIT.
+Rs.2,500 debited from SBI A/c **5678 on 28-06-25 Ref 123456789."></textarea>
+    </div>
+    <button class="sbtn" onclick="runSMSParse()">🔍 Parse SMS</button>`:`
+    <div class="notice bl" style="margin-bottom:12px">
+      <span>💡</span>
+      <div><strong>Supported:</strong> HDFC NetBanking CSV, ICICI statement, SBI CSV, Axis Bank statement. Download from your bank app → Statements → Export CSV.</div>
+    </div>
+    <div class="fg">
+      <label class="fl">Upload CSV File</label>
+      <input class="fi" type="file" accept=".csv,.txt" id="csvFile" onchange="runCSVFile(this)" style="padding:8px"/>
+    </div>
+    <div style="text-align:center;font-size:.72rem;color:var(--t3);margin:8px 0">— or paste CSV text —</div>
+    <div class="fg">
+      <textarea class="fi" id="csvText" rows="5" placeholder="Paste CSV content here…"></textarea>
+    </div>
+    <button class="sbtn" onclick="runCSVText()">🔍 Parse CSV</button>`}
+  </div>
+
+  ${_importRows.length>0?`
+  <div class="card fi2">
+    <div class="sh">
+      <div class="st">📋 Parsed — ${_importRows.length} found</div>
+      <span class="import-badge">${selCount} selected</span>
+    </div>
+    <div class="fg">
+      <label class="fl">Payment Method</label>
+      <select class="fs" id="importMethod">
+        <option value="account">🏦 Bank/UPI</option>
+        <option value="cc">💳 Credit Card</option>
+        <option value="cash">💵 Cash</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      <button class="sbtn sec sm" style="flex:1" onclick="importSelectAll(true)">Select All</button>
+      <button class="sbtn sec sm" style="flex:1" onclick="importSelectAll(false)">Deselect All</button>
+      <button class="sbtn sm" style="flex:1" onclick="doImport()">✅ Import ${selCount}</button>
+    </div>
+    <div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rr);padding:4px">
+      ${_importRows.map((r,i)=>`
+      <div class="parse-row ${r.selected?'':'skip'}">
+        <input type="checkbox" ${r.selected?'checked':''} onchange="_importRows[${i}].selected=this.checked;document.querySelector('.import-badge').textContent=_importRows.filter(x=>x.selected).length+' selected';document.querySelector('[onclick=\'doImport()\']').textContent='✅ Import '+_importRows.filter(x=>x.selected).length"/>
+        <div style="flex:1;min-width:0">
+          <div class="parse-desc">${r.desc}</div>
+          <div class="parse-sub">${r.date}
+            <select class="parse-cat-sel" onchange="_importRows[${i}].category=this.value">
+              ${['food','groceries','dining','transport','fuel','shopping','bills','health','entertainment','travel','recharge','gym','insurance','rent','education','emi','other'].map(c=>`<option value="${c}" ${r.category===c?'selected':''}>${(CAT_ICONS[c]||'📦')+' '+c}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="parse-amt">−${fmt(r.amount)}</div>
+      </div>`).join('')}
+    </div>
+    <div style="height:10px"></div>
+    <button class="sbtn" onclick="doImport()">✅ Import ${selCount} Transactions</button>
+    <div class="fhint" style="margin-top:5px">Duplicates (same date+amount+desc) will be skipped automatically.</div>
+  </div>`:
+  `<div class="notice g fi2"><span>✨</span><div>Paste SMS or upload CSV above to auto-import your spends. Categories are auto-detected and you can edit them before importing.</div></div>`}
+  `;
+}
+
+function runSMSParse() {
+  const text=document.getElementById('smsText')?.value||'';
+  if(!text.trim())return toast('Paste SMS messages first','err');
+  const rows=parseSMSBulk(text);
+  if(!rows.length)return toast('No debit transactions found — try a different format','am');
+  _importRows=rows.map(r=>({...r,selected:true}));
+  toast('✅ Found '+rows.length+' transaction'+(rows.length!==1?'s':''),'ok');
+  renderImport();
+}
+
+function runCSVFile(input) {
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const rows=parseCSVStatement(e.target.result);
+    if(!rows.length)return toast('No debit transactions found in CSV','am');
+    _importRows=rows.map(r=>({...r,selected:true}));
+    toast('✅ Found '+rows.length+' debit transactions','ok');
+    renderImport();
+  };
+  reader.readAsText(file);
+}
+
+function runCSVText() {
+  const text=document.getElementById('csvText')?.value||'';
+  if(!text.trim())return toast('Paste CSV content first','err');
+  const rows=parseCSVStatement(text);
+  if(!rows.length)return toast('No debit transactions found','am');
+  _importRows=rows.map(r=>({...r,selected:true}));
+  toast('✅ Found '+rows.length+' transactions','ok');
+  renderImport();
+}
+
+function importSelectAll(v) {
+  _importRows.forEach(r=>r.selected=v);
+  renderImport();
+}
+
+function doImport() {
+  const method=document.getElementById('importMethod')?.value||'account';
+  const selected=_importRows.filter(r=>r.selected);
+  if(!selected.length)return toast('Select at least one transaction','err');
+  let added=0,dupes=0;
+  for(const r of selected){
+    const isDupe=D.data.expenses.some(e=>e.date===r.date&&Math.abs(e.amount-r.amount)<0.5&&(e.desc||'').slice(0,10)===(r.desc||'').slice(0,10));
+    if(isDupe){dupes++;continue;}
+    D.data.expenses.push({id:uid(),date:r.date,category:r.category,desc:r.desc,amount:r.amount,accountId:null,ccId:null,payMethod:method,note:'Imported',recurring:''});
+    added++;
+  }
+  save();renderAll();
+  _importRows=[];
+  toast('✅ Imported '+added+(dupes>0?' ('+dupes+' dupes skipped)':''),'ok');
+  renderImport();
+}
+
+// ══════════════════════════════════════════════════════════
+//  FINANCIAL CALENDAR
+// ══════════════════════════════════════════════════════════
+function renderCalendar() {
+  const {y,m}=D.sel;
+  const exps=monthExpenses(y,m);
+  const income=monthIncome(y,m);
+  const now=new Date();
+  const isCurM=y===now.getFullYear()&&m===now.getMonth();
+  // Build day map
+  const dayMap={}; // date → {spend, hasIncome}
+  exps.forEach(e=>{
+    const d=parseInt((e.date||'').split('-')[2]||0);
+    if(!dayMap[d])dayMap[d]={spend:0,events:[]};
+    dayMap[d].spend+=e.amount;
+    dayMap[d].events.push(e.desc||e.category);
+  });
+  // EMI due dates
+  D.data.emis.filter(e=>e.remaining>0).forEach(e=>{
+    const d=e.dueDay;
+    if(!dayMap[d])dayMap[d]={spend:0,events:[]};
+    dayMap[d].events.push('📅 EMI: '+e.name);
+    dayMap[d].isEMI=true;
+  });
+  // CC due dates
+  D.data.ccCards.filter(c=>c.outstanding>0).forEach(c=>{
+    const d=c.dueDay;
+    if(!dayMap[d])dayMap[d]={spend:0,events:[]};
+    dayMap[d].events.push('💳 CC Due: '+c.name);
+    dayMap[d].isCC=true;
+  });
+
+  const firstDay=new Date(y,m,1).getDay();
+  const daysInM=new Date(y,m+1,0).getDate();
+  const totalSpend=exps.reduce((s,e)=>s+e.amount,0);
+  const maxDaySpend=Math.max(...Object.values(dayMap).map(d=>d.spend),1);
+
+  // Build calendar cells
+  const cells=[];
+  for(let i=0;i<firstDay;i++) cells.push({day:0,other:true});
+  for(let d=1;d<=daysInM;d++) cells.push({day:d,data:dayMap[d]||null,isToday:isCurM&&d===now.getDate()});
+
+  const pg=document.getElementById('cCashFlow')||document.getElementById('cImport');
+  // Use a dedicated section
+  const calContainer=document.getElementById('cImport');
+  if(!calContainer)return;
+
+  calContainer.innerHTML=`
+  <div class="hero fi2" style="padding:16px">
+    <div class="hl">${MN[m]} ${y}</div>
+    <div class="ha" style="font-size:1.4rem">📅 Spend Calendar</div>
+    <div class="ht"><span style="color:var(--r)">Total: ${fmt(totalSpend)}</span><span style="margin-left:auto;color:var(--t3)">${Object.keys(dayMap).filter(d=>dayMap[d].spend>0).length} days with spend</span></div>
+  </div>
+
+  <div class="card fi2">
+    <div class="cal-grid" style="margin-bottom:6px">
+      ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<div class="cal-day-hdr">${d}</div>`).join('')}
+      ${cells.map(cell=>{
+        if(cell.other)return '<div class="cal-day other-month"></div>';
+        const d=cell.day;
+        const data=cell.data;
+        const hasSpend=data&&data.spend>0;
+        const hasEMI=data&&data.isEMI;
+        const hasCC=data&&data.isCC;
+        const intensity=hasSpend?Math.min(1,data.spend/maxDaySpend):0;
+        const bg=hasSpend?`rgba(255,77,109,${(0.06+intensity*0.3).toFixed(2)})`:hasEMI?'rgba(245,158,11,.1)':hasCC?'rgba(108,99,255,.1)':'';
+        const color=hasSpend?'var(--r)':hasEMI?'var(--am)':hasCC?'var(--ac2)':'var(--t3)';
+        const tooltip=data&&data.events.length?data.events.slice(0,2).join(', '):'';
+        return`<div class="cal-day${cell.isToday?' today':''}" style="background:${bg};color:${color}" title="${tooltip}" onclick="showCalDay(${y},${m},${d})">
+          ${d}
+          ${hasSpend?`<div class="cal-dot"></div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:10px;font-size:.62rem;color:var(--t3);justify-content:center;margin-top:8px">
+      <span style="color:var(--r)">🔴 Spend</span>
+      <span style="color:var(--am)">🟡 EMI Due</span>
+      <span style="color:var(--ac2)">🟣 CC Due</span>
+    </div>
+  </div>
+
+  <div class="card fi2">
+    <div class="st" style="margin-bottom:10px">Day-wise Breakdown</div>
+    ${Object.entries(dayMap).filter(([,d])=>d.spend>0).sort((a,b)=>b[1].spend-a[1].spend).slice(0,10).map(([day,d])=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+      <div style="width:28px;height:28px;border-radius:7px;background:var(--r)14;display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--r);font-family:var(--fm);font-weight:600">${day}</div>
+      <div style="flex:1">
+        <div class="pb2"><div class="pf r" style="width:${Math.round(d.spend/maxDaySpend*100)}%"></div></div>
+      </div>
+      <div style="font-family:var(--fm);font-size:.78rem;color:var(--r);min-width:60px;text-align:right">${fmt(d.spend)}</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function showCalDay(y,m,day) {
+  const dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const txs=D.data.expenses.filter(e=>e.date===dateStr);
+  const emis=D.data.emis.filter(e=>e.remaining>0&&e.dueDay===day);
+  if(!txs.length&&!emis.length)return;
+  openMod(`📅 ${MN[m]} ${day}`,`
+    ${txs.length?`<div style="font-size:.76rem;font-weight:500;margin-bottom:8px">Expenses</div>
+    <div class="txl">${txs.map(tx=>`<div class="txi" onclick="editExpense('${tx.id}')">
+      <div class="tico sp">${CAT_ICONS[tx.category]||'📦'}</div>
+      <div style="flex:1"><div class="txn">${tx.desc||tx.category}</div><div class="txs">${tx.category}</div></div>
+      <div class="txa db">−${fmt(tx.amount)}</div>
+    </div>`).join('')}</div>`:''}
+    ${emis.length?`<div style="font-size:.76rem;font-weight:500;margin:12px 0 8px">EMI Due</div>
+    ${emis.map(e=>`<div class="ei" style="margin-bottom:5px">
+      <div class="eii">${EMI_ICONS[e.type]||'📦'}</div>
+      <div class="ein"><div class="enn">${e.name}</div></div>
+      <div class="eir"><div class="eia">${fmt(e.monthly)}</div></div>
+    </div>`).join('')}`:''}
+  `);
+}
+
+// ══════════════════════════════════════════════════════════
+//  RECURRING EXPENSE MANAGER
+// ══════════════════════════════════════════════════════════
+function renderRecurring() {
+  const recs=D.data.expenses.filter(e=>e.recurring);
+  // Dedupe by desc+category+amount
+  const seen=new Set();
+  const unique=[];
+  for(const r of [...recs].sort((a,b)=>b.date.localeCompare(a.date))){
+    const k=`${r.desc}-${r.category}-${r.amount}`;
+    if(!seen.has(k)){seen.add(k);unique.push(r);}
+  }
+  const pg=document.getElementById('cImport');
+  if(!pg)return;
+  const totalRec=unique.reduce((s,r)=>s+r.amount,0);
+  pg.innerHTML=`
+  <div class="hero fi2" style="padding:16px">
+    <div class="hl">Recurring Expenses</div>
+    <div class="ha" style="font-size:1.4rem">🔁 Monthly Commitments</div>
+    <div class="ht"><span style="color:var(--r)">${fmt(totalRec)}/mo total</span><span style="margin-left:auto">${unique.length} items</span></div>
+  </div>
+  ${unique.length?unique.map(r=>`
+  <div class="rec-item">
+    <div class="rec-dot"></div>
+    <div style="flex:1">
+      <div class="rec-name">${CAT_ICONS[r.category]||'📦'} ${r.desc||r.category}</div>
+      <div class="rec-meta">${r.recurring} · Last: ${r.date}</div>
+    </div>
+    <div class="rec-amt">−${fmt(r.amount)}/mo</div>
+    <div class="paybtn" onclick="openAdd('expense','${r.id}')">✏️</div>
+  </div>`).join(''):`<div class="empty"><div class="eic">🔁</div><div class="em">No recurring expenses marked.<br>When adding an expense, set Recurring = Monthly.</div></div>`}
+  `;
+}
+
+
+function showWhatsNew() {
+  openMod("✨ What's New in SpendWise",`
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div class="ins ok"><strong>📲 SMS Import</strong><br>Paste bank SMS alerts and auto-import all debits. Works with HDFC, ICICI, SBI, Axis, Kotak, UPI alerts. Categories auto-detected.</div>
+    <div class="ins ok"><strong>📄 CSV Statement Import</strong><br>Upload bank statement CSV and bulk-import transactions. Supports HDFC, ICICI, SBI, Axis formats.</div>
+    <div class="ins ok"><strong>⚡ Real-Time Spend Tracker</strong><br>See today's spend, this week's total, and daily average at a glance on the home screen.</div>
+    <div class="ins ok"><strong>📅 Spend Calendar</strong><br>See your entire month's spending on a calendar view. Spot heavy-spend days instantly. Also shows EMI and CC due dates.</div>
+    <div class="ins ok"><strong>🔁 Recurring Manager</strong><br>All your monthly subscriptions and recurring expenses in one place. Mark any expense as recurring when adding.</div>
+    <div class="ins tip"><strong>🧠 AI Adviser Upgraded</strong><br>Now uses the latest Claude model. Detects recurring commitment burden and gives sharper, number-based advice.</div>
+    <div class="ins tip"><strong>🐛 Bug Fixes</strong><br>Fixed: AI adviser undefined variable crash. Fixed: EMI pending/paid calculation. Fixed: CC spend double-count on edit.</div>
+  </div>
+  <div style="height:12px"></div>
+  <button class="sbtn sec sm" onclick="closeAll()">Got it 👍</button>
+  `);
+}
+
+
 function init() {
   load();
   const now = new Date();
@@ -814,13 +1385,16 @@ function openPage(name) {
   renderPage(name);
 }
 function renderPage(name) {
-  if (name==='Home')        renderHome();
+  if      (name==='Home')     renderHome();
   else if (name==='EMI')      renderEMI();
   else if (name==='Savings')  renderSavings();
   else if (name==='CC')       renderCC();
   else if (name==='Report')   renderReport();
   else if (name==='Adviser')  renderAdviser();
   else if (name==='CashFlow') renderCashFlow();
+  else if (name==='Import')   renderImport();
+  else if (name==='Calendar') renderCalendar();
+  else if (name==='Recurring') renderRecurring();
 }
 function renderAll() {
   setTopMonth();
@@ -830,10 +1404,11 @@ function renderAll() {
 }
 // Expose openPage globally for nav shortcuts
 function navTo(page) {
-  // Called from quick links or + menu that don't have a nav tab
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
-  const pg = document.getElementById('pg'+page);
+  // Calendar and Recurring share the Import page DOM node
+  const domPage = (page==='Calendar'||page==='Recurring') ? 'Import' : page;
+  const pg = document.getElementById('pg'+domPage);
   if (pg) pg.classList.add('on');
   renderPage(page);
   closeAll();
@@ -881,6 +1456,9 @@ function renderHome() {
   const proj    = Math.round(dailyAvg*daysInM);
   const isCurM  = y===now.getFullYear()&&m===now.getMonth();
 
+  // Real-time spend
+  const todaySpend = isCurM ? getTodaySpend() : 0;
+  const weekSpend  = isCurM ? getWeekSpend()  : 0;
   // 6-month chart
   const chart6=[]; for(let i=5;i>=0;i--){const d=new Date(y,m-i,1);const cy=d.getFullYear(),cm=d.getMonth();chart6.push({y:cy,m:cm,v:monthExpenses(cy,cm).reduce((s,e)=>s+e.amount,0)});}
   const maxV=Math.max(...chart6.map(c=>c.v),1);
@@ -920,6 +1498,7 @@ function renderHome() {
     </div>
   </div>
 
+  <div class="notice g fi2" style="cursor:pointer" onclick="showWhatsNew()"><span>✨</span><div><strong>New in this update:</strong> SMS Import, Spend Calendar, Real-time Tracker, Recurring Manager. <span style="color:var(--ac)">See all →</span></div></div>
   ${ccDueAlert?`<div class="notice r fi2"><span style="font-size:1.1rem">🔴</span><div><strong>Credit card payment due soon!</strong> Check Cards tab to pay and avoid interest charges.</div></div>`:''}
   ${nextInc?`<div class="notice bl fi2" style="cursor:pointer" onclick="selMonth(${nextD.getFullYear()},${nextD.getMonth()})"><span>⏭</span><div><strong>Next month income pre-set: ${fmt(nextInc)}</strong> for ${MN[nextD.getMonth()]} ${nextD.getFullYear()} — tap to view</div></div>`:''}
 
@@ -929,11 +1508,25 @@ function renderHome() {
     <div class="qb" onclick="openAdd('income')"><div class="qi">💼</div><div class="ql">Income</div></div>
     <div class="qb" onclick="openAdd('emi_pay')"><div class="qi">💳</div><div class="ql">Pay EMI</div></div>
     <div class="qb" onclick="openAdd('cc_pay')"><div class="qi">✅</div><div class="ql">Pay Card</div></div>
-    <div class="qb" onclick="navTo('Savings')"><div class="qi">💰</div><div class="ql">Savings</div></div>
+    <div class="qb" onclick="navTo('Import')"><div class="qi">📲</div><div class="ql">Import SMS</div></div>
     <div class="qb" onclick="navTo('CashFlow')"><div class="qi">💹</div><div class="ql">Cash Flow</div></div>
-    <div class="qb" onclick="openPage('Report')"><div class="qi">📊</div><div class="ql">Reports</div></div>
+    <div class="qb" onclick="navTo('Calendar')"><div class="qi">📅</div><div class="ql">Calendar</div></div>
     <div class="qb" onclick="openAdd('budget')"><div class="qi">🎯</div><div class="ql">Budgets</div></div>
   </div>
+  <!-- REAL-TIME SPEND TICKER (only current month) -->
+  ${isCurM&&(todaySpend>0||weekSpend>0)?`
+  <div class="rt-bar fi2">
+    <div class="rt-pulse"></div>
+    <div style="flex:1">
+      <div style="font-size:.65rem;color:var(--t2);font-weight:500;margin-bottom:6px">⚡ Real-Time Spend</div>
+      <div class="rt-grid">
+        <div><div class="rt-lbl">Today</div><div class="rt-val" style="color:var(--r)">${fmt(todaySpend)}</div></div>
+        <div><div class="rt-lbl">This Week</div><div class="rt-val" style="color:var(--am)">${fmt(weekSpend)}</div></div>
+        <div><div class="rt-lbl">Daily Avg</div><div class="rt-val">${fmt(dailyAvg)}</div></div>
+      </div>
+      ${income>0&&proj>income?`<div style="margin-top:6px;font-size:.68rem;background:var(--r)08;color:var(--r);border-radius:6px;padding:5px 8px">⚠ Projected overspend: ${fmt(proj-income)}</div>`:""}
+    </div>
+  </div>`:""}
 
   <!-- ACCOUNTS -->
   <div class="fi2">
@@ -1015,9 +1608,10 @@ function renderHome() {
         </div>`;}).join('');
     })()}
     <div style="height:6px"></div>
-    <div style="display:flex;gap:7px">
-      <button class="sbtn sec sm" style="flex:1;font-size:.72rem" onclick="openPage('Report')">📊 Full Report</button>
-      <button class="sbtn sec sm" style="flex:1;font-size:.72rem" onclick="navTo('CashFlow')">💹 Cash Flow</button>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.72rem" onclick="openPage('Report')">📊 Full Report</button>
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.72rem" onclick="navTo('CashFlow')">💹 Cash Flow</button>
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.72rem" onclick="navTo('Calendar')">📅 Calendar</button>
     </div>
   </div>
 
@@ -1381,7 +1975,7 @@ function renderCC() {
 
   <!-- CC SPENDS THIS MONTH -->
   <div class="fi2">
-    <div class="sh"><div class="st">Recent CC Spends</div></div>
+    <div class="sh"><div class="st">Recent CC Spends</div><div class="sa" onclick="navTo('Import')">📲 Import SMS →</div></div>
     <div class="txl">
       ${(()=>{
         const mKey=mk(D.sel.y,D.sel.m);
@@ -1843,6 +2437,14 @@ function renderAdviser() {
   closing.forEach(e=>{const fv=calcSIPValue(Math.round(e.monthly*.7),12,120);insights.push({t:'ok',m:`<strong>🎉 ${e.name}</strong> closes in ${e.remaining} month${e.remaining!==1?'s':''}! Redirect ${fmt(Math.round(e.monthly*.7))}/mo into SIP → <strong>${fmt(fv)}</strong> in 10 yrs.`});});
   const totalDebt=D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly*e.remaining,0);
   if(totalDebt>0&&income>0)insights.push({t:'tip',m:`Total debt: ${fmt(totalDebt)} (${(totalDebt/income).toFixed(1)} months of income). See <strong>Debt Reduction</strong> in Reports.`});
+  // Recurring commitments insight
+  const recTotal=D.data.expenses.filter(e=>e.recurring==='monthly').reduce((s,e,i,a)=>{
+    // Only count unique recurring (by desc+category)
+    const k=e.desc+e.category;
+    if(a.findIndex(x=>x.desc+x.category===k)===i) return s+e.amount;
+    return s;
+  },0);
+  if(recTotal>0&&income>0)insights.push({t:'tip',m:`🔁 <strong>Recurring commitments: ${fmt(recTotal)}/mo</strong> — that's ${(recTotal/income*100).toFixed(0)}% of income going to fixed subscriptions & bills. <span style="color:var(--ac);cursor:pointer" onclick="navTo('Recurring')">Review →</span>`});
   if(!insights.length)insights.push({t:'ok',m:`<strong>Looking good!</strong> Keep tracking and I will surface spending patterns.`});
 
   document.getElementById('cAdviser').innerHTML = `
@@ -1856,9 +2458,10 @@ function renderAdviser() {
       <button class="askgo" onclick="askAI()">Ask AI</button>
     </div>
     <div id="advReply"></div>
-    <div style="display:flex;gap:6px;margin-top:10px">
-      <button class="sbtn sec sm" style="flex:1;font-size:.7rem" onclick="navTo('CashFlow')">💹 Cash Flow</button>
-      <button class="sbtn sec sm" style="flex:1;font-size:.7rem" onclick="navTo('Report')">📊 Full Report</button>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.7rem" onclick="navTo('CashFlow')">💹 Cash Flow</button>
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.7rem" onclick="openPage('Report')">📊 Report</button>
+      <button class="sbtn sec sm" style="flex:1;min-width:80px;font-size:.7rem" onclick="navTo('Import')">📲 Import SMS</button>
     </div>
   </div>
   <div class="card fi2">
@@ -1893,10 +2496,10 @@ async function askAI() {
   const inc=monthIncome(y,m),sp=monthExpenses(y,m).reduce((s,e)=>s+e.amount,0),emi=D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0),sip=totalSIP(),inv=totalInvestments(),cc=totalCCOutstanding();
   const pendEMICount=pendingEMIsForMonth(y,m).length;
   const totalDebt=D.data.emis.filter(e=>e.remaining>0).reduce((s2,e)=>s2+e.monthly*e.remaining,0);
-  const ctx=`You are SpendWise, a concise Indian personal finance adviser. Current month (${MS[m]} ${y}) data: Income ₹${inc}, Spent ₹${sp} (${income>0?(sp/income*100).toFixed(0):0}% of income), EMI ₹${emi}/mo, SIP ₹${sip}/mo, Portfolio ₹${inv}, CC Outstanding ₹${cc}, Total Debt ₹${totalDebt}, Pending EMIs: ${pendEMICount}. Reply in 2-4 sentences, use ₹, give ONE concrete actionable advice specific to this user's numbers.`;
+  const ctx=`You are SpendWise, a concise Indian personal finance adviser. Current month (${MS[m]} ${y}) data: Income ₹${inc}, Spent ₹${sp} (${inc>0?(sp/inc*100).toFixed(0):0}% of income), EMI ₹${emi}/mo, SIP ₹${sip}/mo, Portfolio ₹${inv}, CC Outstanding ₹${cc}, Total Debt ₹${totalDebt}, Pending EMIs: ${pendEMICount}. Reply in 2-4 sentences, use ₹, give ONE concrete actionable advice specific to this user's numbers.`;
   try {
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:ctx,messages:[{role:'user',content:q}]})});
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:ctx,messages:[{role:'user',content:q}]})});
     const d=await res.json();
     const txt=(d.content||[]).map(c=>c.text||'').join('')||'Unable to respond.';
     rep.innerHTML=`<div class="ins tip" style="margin-top:8px">${txt}</div>`;
@@ -1930,6 +2533,9 @@ function openAdd(type, editId) {
         <div class="qb" onclick="openAdd('sip_deduct')"><div class="qi">📊</div><div class="ql">SIP Deduct</div></div>
         <div class="qb" onclick="navTo('CashFlow')"><div class="qi">💹</div><div class="ql">Cash Flow</div></div>
         <div class="qb" onclick="navTo('Savings')"><div class="qi">💰</div><div class="ql">Savings</div></div>
+        <div class="qb" onclick="navTo('Import')"><div class="qi">📲</div><div class="ql">Import SMS</div></div>
+        <div class="qb" onclick="navTo('Calendar')"><div class="qi">📅</div><div class="ql">Calendar</div></div>
+        <div class="qb" onclick="navTo('Recurring')"><div class="qi">🔁</div><div class="ql">Recurring</div></div>
       </div>`);
     return;
   }
@@ -2762,9 +3368,14 @@ function openSettings() {
 
     <!-- BACKUP & RESTORE -->
     <div style="font-family:var(--fd);font-size:.85rem;font-weight:700;margin-bottom:10px">📦 Backup & Restore</div>
-    <div style="display:flex;gap:8px;margin-bottom:16px">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="sbtn sm" style="flex:1" onclick="exportJSON()">⬇️ Download Backup</button>
       <button class="sbtn sec sm" style="flex:1" onclick="importJSON()">⬆️ Restore Backup</button>
+    </div>
+    <div style="font-family:var(--fd);font-size:.85rem;font-weight:700;margin-bottom:10px">📲 Smart Import</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="sbtn sec sm" style="flex:1" onclick="closeAll();navTo('Import')">📱 Import from SMS</button>
+      <button class="sbtn sec sm" style="flex:1" onclick="closeAll();navTo('Calendar')">📅 Spend Calendar</button>
     </div>
 
     <!-- SELECTIVE CLEAR -->
