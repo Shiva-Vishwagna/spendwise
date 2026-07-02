@@ -532,6 +532,7 @@ const D = {
     expenses: [],
     // {id,date,category,desc,amount,accountId,ccId,payMethod,note,recurring}
     incomes: [],
+    // {id,date,forMonth,type,amount,accountId,note} — itemized income ledger; type='Salary' is the main income
     emis: [],
     // {id,name,principal,monthly,dueDay,remaining,total,interest,type,accountId,lender,startYM,
     //  payHistory:{YYYY-MM:{status,paidAmt,paidDate,note}}}
@@ -644,6 +645,22 @@ function load() {
       if (!p.incomeByType) p.incomeByType={};
       if (!p.netWorthSnapshots) p.netWorthSnapshots={};
       if (!p.settings) p.settings={pin:'1234',activationMonth:null};
+      // One-time migration: old lump-sum monthly income -> itemized income ledger
+      if ((p.incomes||[]).length===0) {
+        const months = new Set([...Object.keys(p.incomeByType||{}), ...Object.keys(p.budgetIncome||{})]);
+        months.forEach(mKey=>{
+          const byType = (p.incomeByType||{})[mKey];
+          if (byType && Object.keys(byType).length) {
+            Object.keys(byType).forEach(t=>{
+              const amt=byType[t];
+              if(amt>0) p.incomes.push({id:uid(),date:mKey+'-01',forMonth:mKey,type:t,amount:amt,accountId:null,note:'Migrated from earlier version'});
+            });
+          } else {
+            const amt=(p.budgetIncome||{})[mKey];
+            if(amt>0) p.incomes.push({id:uid(),date:mKey+'-01',forMonth:mKey,type:'Salary',amount:amt,accountId:null,note:'Migrated from earlier version'});
+          }
+        });
+      }
       // Ensure payHistory on all EMIs
       (p.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
       D.data = p;
@@ -683,6 +700,20 @@ function exportCSV() {
   a.click();
   toast('✅ CSV exported','ok');
 }
+function exportIncomeCSV() {
+  const rows=[['Date','Budget Month','Type','Amount','Credited To','Note']];
+  D.data.incomes.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(i=>{
+    const acc=i.accountId?accById(i.accountId):null;
+    rows.push([i.date,i.forMonth||i.date.slice(0,7),i.type,i.amount,acc?acc.name:'',(i.note||'').replace(/"/g,"'")]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='spendwise-income-'+td()+'.csv';
+  a.click();
+  toast('✅ Income CSV exported','ok');
+}
 function importJSON() {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.json';
@@ -701,6 +732,21 @@ function importJSON() {
         if(!D.data.budgetIncome) D.data.budgetIncome={};
         if(!D.data.incomeByType) D.data.incomeByType={};
         if(!D.data.netWorthSnapshots) D.data.netWorthSnapshots={};
+        if ((D.data.incomes||[]).length===0) {
+          const months = new Set([...Object.keys(D.data.incomeByType||{}), ...Object.keys(D.data.budgetIncome||{})]);
+          months.forEach(mKey=>{
+            const byType = (D.data.incomeByType||{})[mKey];
+            if (byType && Object.keys(byType).length) {
+              Object.keys(byType).forEach(t=>{
+                const amt=byType[t];
+                if(amt>0) D.data.incomes.push({id:uid(),date:mKey+'-01',forMonth:mKey,type:t,amount:amt,accountId:null,note:'Migrated from earlier version'});
+              });
+            } else {
+              const amt=(D.data.budgetIncome||{})[mKey];
+              if(amt>0) D.data.incomes.push({id:uid(),date:mKey+'-01',forMonth:mKey,type:'Salary',amount:amt,accountId:null,note:'Migrated from earlier version'});
+            }
+          });
+        }
         save(); renderAll(); closeAll();
         toast('✅ Data restored successfully','ok');
       } catch(err) { toast('❌ Invalid backup file','err'); }
@@ -758,9 +804,15 @@ function monthExpensesAll(y, m) {
   const key = mk(y, m);
   return D.data.expenses.filter(e => e.date.startsWith(key));
 }
-function monthIncomeByType(y, m) {
+function incomeById(id) { return D.data.incomes.find(i=>i.id===id); }
+function monthIncomes(y, m) {
   const key = mk(y, m);
-  return D.data.incomeByType[key] || {};
+  return D.data.incomes.filter(i => (i.forMonth||(i.date||'').slice(0,7)) === key);
+}
+function monthIncomeByType(y, m) {
+  const out = {};
+  monthIncomes(y, m).forEach(i => { out[i.type] = (out[i.type]||0) + i.amount; });
+  return out;
 }
 function monthSalaryIncome(y, m) {
   return monthIncomeByType(y, m).Salary || 0;
@@ -770,18 +822,14 @@ function monthOtherIncome(y, m) {
   return Object.keys(t).filter(k => k !== 'Salary').reduce((s, k) => s + (t[k] || 0), 0);
 }
 function monthTotalIncome(y, m) {
-  const key = mk(y, m);
-  const t = D.data.incomeByType[key];
-  if (t && Object.keys(t).length) return Object.values(t).reduce((s, v) => s + (v || 0), 0);
-  return D.data.budgetIncome[key] || D.data.defaultIncome || 0;
+  return monthIncomes(y, m).reduce((s, i) => s + i.amount, 0);
 }
 function monthIncome(y, m) {
-  // "Main income" = Salary once itemized income has been recorded for the month;
-  // falls back to the legacy blended figure for months entered before this existed.
-  const key = mk(y, m);
-  const t = D.data.incomeByType[key];
-  if (t && Object.keys(t).length) return t.Salary || 0;
-  return D.data.budgetIncome[key] || D.data.defaultIncome || 0;
+  // "Main income" = Salary recorded for the month. If nothing has been logged yet
+  // for this month (e.g. a future month), fall back to the assumed default salary.
+  const list = monthIncomes(y, m);
+  if (list.length) return monthSalaryIncome(y, m);
+  return D.data.defaultIncome || 0;
 }
 function getEMIMonthStatus(emiId, y, m) {
   const emi = emiById(emiId); if (!emi) return null;
@@ -1703,7 +1751,7 @@ function renderHome() {
   // Next month income
   const nextD=new Date(y,m+1,1);
   const nextKey=mk(nextD.getFullYear(),nextD.getMonth());
-  const nextInc=D.data.budgetIncome[nextKey];
+  const nextInc=monthTotalIncome(nextD.getFullYear(),nextD.getMonth());
 
   // CC due alert
   const ccDueAlert = isCurM && D.data.ccCards.filter(c=>c.outstanding>0&&(c.dueDay-now.getDate())<=5&&(c.dueDay-now.getDate())>=-2).length>0;
@@ -1763,6 +1811,25 @@ function renderHome() {
       ${streak>=2?`<div style="margin-top:6px;font-size:.68rem;background:var(--g)08;color:var(--g);border-radius:6px;padding:5px 8px">🔥 ${streak}-day no-spend streak</div>`:""}
     </div>
   </div>`:""}
+
+  <!-- INCOME SOURCES -->
+  <div class="fi2">
+    <div class="sh"><div class="st">Income Sources — ${MN[m]}</div><div class="sa" onclick="openAdd('income')">+ Add</div></div>
+    <div class="txl">
+      ${(()=>{
+        const incList=[...monthIncomes(y,m)].sort((a,b)=>b.date.localeCompare(a.date));
+        if(!incList.length) return '<div class="empty"><div class="eic">💼</div><div class="em">No income logged for this month yet.<br>Tap + Add to log your salary.</div></div>';
+        return incList.map(inc=>{const acc=inc.accountId?accById(inc.accountId):null;
+          return`<div class="txi" onclick="editIncome('${inc.id}')">
+            <div class="tico cr">${inc.type==='Salary'?'💼':'💰'}</div>
+            <div style="flex:1;min-width:0"><div class="txn">${inc.type}${inc.type==='Salary'?' <span class="bdg g" style="font-size:.52rem;padding:1px 5px">MAIN</span>':''}</div>
+            <div class="txs">${acc?acc.name+' · ':''}${inc.date}${inc.note?' · '+inc.note:''}</div></div>
+            <div class="txa cb">+${fmt(inc.amount)}</div>
+          </div>`;
+        }).join('');
+      })()}
+    </div>
+  </div>
 
   <!-- ACCOUNTS -->
   <div class="fi2">
@@ -2894,32 +2961,44 @@ function openAdd(type, editId) {
 
   // INCOME
   else if (type==='income') {
+    const inc = editId ? incomeById(editId) : null;
     const now=new Date();
     const opts=[];
-    for(let i=-2;i<=3;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const oy=d.getFullYear(),om=d.getMonth();const ok=mk(oy,om);const isCur=i===0,isFut=i>0,isSel=oy===D.sel.y&&om===D.sel.m;opts.push(`<option value="${ok}" ${isSel?'selected':''}>${MN[om]} ${oy}${isCur?' (current)':''}${isFut?' ⏭ next':''}</option>`);}
-    const defMk=mk(D.sel.y,D.sel.m);const existing=D.data.budgetIncome[defMk]||0;
-    openMod('💼 Add Income',`
-      <div class="notice bl" style="margin-bottom:12px"><span>💡</span><div><strong>Salary is your main income.</strong> It drives savings %, budgets & insights. Other types (bonus, freelance...) are tracked but shown separately.</div></div>
+    for(let i=-2;i<=3;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const oy=d.getFullYear(),om=d.getMonth();const ok=mk(oy,om);const isCur=i===0,isFut=i>0,isSel=inc?inc.forMonth===ok:(oy===D.sel.y&&om===D.sel.m);opts.push(`<option value="${ok}" ${isSel?'selected':''}>${MN[om]} ${oy}${isCur?' (current)':''}${isFut?' ⏭ next':''}</option>`);}
+    openMod(inc?'✏️ Edit Income':'💼 Add Income',`
+      <div class="notice bl" style="margin-bottom:12px"><span>💡</span><div><strong>Salary is your main income source.</strong> It drives savings %, budgets & insights. Every entry is kept separately — nothing gets overwritten, so add one row per payment (e.g. two freelance gigs in a month = two entries).</div></div>
       <div class="fg"><label class="fl">Budget Month</label>
         <select class="fs" id="fIncMonth" onchange="onIncMonthChange()">${opts.join('')}</select>
         <div class="fhint" id="fIncHint"></div>
       </div>
-      <div style="background:var(--card2);border-radius:var(--rr);padding:9px 11px;margin-bottom:12px;font-size:.76rem;color:var(--t2)" id="fIncExisting">Current: <strong>${fmt(existing)}</strong></div>
+      <div style="background:var(--card2);border-radius:var(--rr);padding:9px 11px;margin-bottom:12px;font-size:.76rem;color:var(--t2)" id="fIncExisting"></div>
       <div class="fg"><label class="fl">Type</label>
-        <select class="fs" id="fIncType" onchange="onIncTypeChange()">
-          <option value="Salary">💼 Salary (main income)</option><option value="Freelance">💻 Freelance</option>
-          <option value="Bonus">🎁 Bonus</option><option value="Rental">🏠 Rental</option>
-          <option value="Interest">🏦 Interest/Dividend</option><option value="Other">📦 Other</option>
+        <select class="fs" id="fIncType">
+          <option value="Salary" ${!inc||inc.type==='Salary'?'selected':''}>💼 Salary (main income)</option>
+          <option value="Freelance" ${inc&&inc.type==='Freelance'?'selected':''}>💻 Freelance</option>
+          <option value="Bonus" ${inc&&inc.type==='Bonus'?'selected':''}>🎁 Bonus</option>
+          <option value="Rental" ${inc&&inc.type==='Rental'?'selected':''}>🏠 Rental</option>
+          <option value="Interest" ${inc&&inc.type==='Interest'?'selected':''}>🏦 Interest/Dividend</option>
+          <option value="Other" ${inc&&inc.type==='Other'?'selected':''}>📦 Other</option>
         </select></div>
-      <div class="fg"><label class="fl">Amount (₹)</label>
-        <input class="fi" type="number" id="fIncAmt" placeholder="e.g. 75000" inputmode="decimal"/>
-        <div class="fhint">Each type is stored separately — adding Bonus won't overwrite Salary.</div></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Amount (₹)</label>
+          <input class="fi" type="number" id="fIncAmt" value="${inc?inc.amount:''}" placeholder="e.g. 75000" inputmode="decimal"/></div>
+        <div class="fg"><label class="fl">Date Received</label>
+          <input class="fi" type="date" id="fIncDate" value="${inc?inc.date:td()}"/></div>
+      </div>
       <div class="fg"><label class="fl">Credit to Account</label>
         <select class="fs" id="fIncAcc"><option value="">Don't update account</option>${accOpts}</select></div>
-      <div class="fg"><label class="fl">Set as default monthly income?</label>
-        <select class="fs" id="fIncDef"><option value="no">No — this month only</option><option value="yes">Yes — default for all months</option></select></div>
-      <button class="sbtn" onclick="saveIncome()">💾 Save Income</button>`);
-    setTimeout(onIncMonthChange,40);
+      <div class="fg"><label class="fl">Note (optional)</label>
+        <input class="fi" id="fIncNote" value="${inc?inc.note||'':''}" placeholder="e.g. July payroll, Acme Corp invoice"/></div>
+      ${!inc?`<div class="fg"><label class="fl">Set as default monthly salary?</label>
+        <select class="fs" id="fIncDef"><option value="no">No — this entry only</option><option value="yes">Yes — assume this every month until changed</option></select>
+        <div class="fhint">Used to estimate income for months you haven't logged yet.</div></div>`:''}
+      ${inc?`<div style="display:flex;gap:8px">
+        <button class="sbtn" style="flex:2" onclick="saveIncome('${editId}')">Save Changes</button>
+        <button class="sbtn danger" style="flex:1" onclick="deleteIncome('${editId}')">Delete</button>
+      </div>`:`<button class="sbtn" onclick="saveIncome()">💾 Save Income</button>`}`);
+    setTimeout(()=>{ const el=document.getElementById('fIncAcc'); if(el&&inc&&inc.accountId) el.value=inc.accountId; onIncMonthChange(); },40);
   }
 
   // EMI
@@ -3221,22 +3300,18 @@ function onIncMonthChange() {
   const {y,m}=mkp(mKey);
   const now=new Date();
   const isFut=new Date(y,m,1)>new Date(now.getFullYear(),now.getMonth(),1);
-  const byType=D.data.incomeByType[mKey]||{};
+  const list=monthIncomes(y,m);
   const hint=document.getElementById('fIncHint');
   const info=document.getElementById('fIncExisting');
   if(hint) hint.innerHTML=isFut?`<span style="color:var(--am)">⏭ Budget for ${MN[m]} ${y}. Account updates today.</span>`:'';
   if(info){
-    const parts=Object.keys(byType).filter(k=>byType[k]>0).map(k=>`${k==='Salary'?'💼 ':''}${k}: <strong>${fmt(byType[k])}</strong>`);
-    info.innerHTML=parts.length?parts.join(' &nbsp;·&nbsp; ')+(byType.Salary?' <span style="color:var(--g)">(Salary = main income)</span>':''):'No income recorded yet for this month.';
+    if(!list.length){ info.innerHTML='No income recorded yet for this month.'; }
+    else {
+      const rows=list.map(i=>`${i.type==='Salary'?'💼':'💰'} ${i.type}: <strong>${fmt(i.amount)}</strong>`).join(' &nbsp;·&nbsp; ');
+      const total=list.reduce((s,i)=>s+i.amount,0);
+      info.innerHTML=rows+`<br><span style="color:var(--t3)">Total so far: ${fmt(total)}</span>`;
+    }
   }
-  onIncTypeChange();
-}
-function onIncTypeChange() {
-  const monthSel=document.getElementById('fIncMonth'); const typeSel=document.getElementById('fIncType');
-  const amtEl=document.getElementById('fIncAmt');
-  if(!monthSel||!typeSel||!amtEl) return;
-  const byType=D.data.incomeByType[monthSel.value]||{};
-  amtEl.value=byType[typeSel.value]||'';
 }
 function onCCPayCardChange() {
   const cardId=document.getElementById('fCPCard')?.value;
@@ -3366,23 +3441,38 @@ function deleteExpense(id) {
   save(); renderAll(); closeAll(); toast('Expense deleted','ok');
 }
 
-function saveIncome() {
+function saveIncome(editId) {
   const amt=parseFloat(document.getElementById('fIncAmt').value);
   if(!amt||amt<=0) return toast('Enter a valid amount','err');
   const mKey=document.getElementById('fIncMonth')?.value||mk(D.sel.y,D.sel.m);
+  const date=document.getElementById('fIncDate')?.value||td();
   const accId=document.getElementById('fIncAcc').value;
   const type=document.getElementById('fIncType').value;
-  const setDef=document.getElementById('fIncDef').value==='yes';
+  const note=document.getElementById('fIncNote')?.value||'';
+  const setDefEl=document.getElementById('fIncDef');
+  const setDef=setDefEl?setDefEl.value==='yes':false;
   const {y:iy,m:im}=mkp(mKey);
-  const now=new Date();
-  const isFut=new Date(iy,im,1)>new Date(now.getFullYear(),now.getMonth(),1);
-  if(!D.data.incomeByType[mKey]) D.data.incomeByType[mKey]={};
-  D.data.incomeByType[mKey][type]=amt;
-  D.data.budgetIncome[mKey]=Object.values(D.data.incomeByType[mKey]).reduce((s,v)=>s+(v||0),0);
+
+  if(editId){
+    const inc=incomeById(editId); if(!inc) return;
+    if(inc.accountId){ const oldAcc=accById(inc.accountId); if(oldAcc) oldAcc.balance-=inc.amount; }
+    Object.assign(inc,{amount:amt,forMonth:mKey,date,type,accountId:accId||null,note});
+    if(accId) credit(accId,amt,type+' (edited)',date);
+  } else {
+    D.data.incomes.push({id:uid(),date,forMonth:mKey,type,amount:amt,accountId:accId||null,note});
+    if(accId) credit(accId,amt,type,date);
+  }
   if(setDef&&type==='Salary') D.data.defaultIncome=amt;
-  if(accId) credit(accId,amt,type+(isFut?' (for '+MN[im]+' '+iy+')':''),td());
   save(); renderAll(); closeAll();
-  toast(`✅ ${fmt(amt)} ${type} set for ${MN[im]} ${iy}`, 'ok');
+  toast(`✅ ${fmt(amt)} ${type} ${editId?'updated':'added'} for ${MN[im]} ${iy}`, 'ok');
+}
+function editIncome(id) { openAdd('income', id); }
+function deleteIncome(id) {
+  if(!confirm('Delete this income entry?')) return;
+  const inc=incomeById(id); if(!inc) return;
+  if(inc.accountId){ const acc=accById(inc.accountId); if(acc) acc.balance-=inc.amount; }
+  D.data.incomes=D.data.incomes.filter(i=>i.id!==id);
+  save(); renderAll(); closeAll(); toast('Income deleted','ok');
 }
 
 function saveEMI(editId) {
@@ -3723,6 +3813,7 @@ function openSettings() {
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="sbtn sec sm" style="flex:1" onclick="exportCSV()">📄 Export Expenses (CSV)</button>
+      <button class="sbtn sec sm" style="flex:1" onclick="exportIncomeCSV()">💼 Export Income (CSV)</button>
     </div>
     <div style="font-family:var(--fd);font-size:.85rem;font-weight:700;margin-bottom:10px">📲 Smart Import</div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -3744,6 +3835,7 @@ function openSettings() {
         {key:'goals',      label:'Savings Goals',             icon:'🏁'},
         {key:'accounts',   label:'Bank Accounts',             icon:'🏦'},
         {key:'people',     label:'Friends & Splits',          icon:'🧑‍🤝‍🧑'},
+        {key:'incomes',    label:'Income History',            icon:'💼'},
       ].map(s=>`<button class="sbtn danger sm" onclick="clearSection('${s.key}','${s.label}')">🗑 Clear ${s.icon} ${s.label}</button>`).join('')}
     </div>
     <div style="height:16px"></div>
