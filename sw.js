@@ -1,5 +1,5 @@
-// SpendWise Service Worker v2
-const CACHE = 'spendwise-v2';
+// SpendWise Service Worker v3
+const CACHE = 'spendwise-v3';
 const APP_SHELL = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', function(e) {
@@ -37,26 +37,20 @@ self.addEventListener('fetch', function(e) {
   // Never intercept chrome-extension or non-http
   if (url.indexOf('http') !== 0) return;
 
+  // Network-first: always try to get the latest version when online.
+  // Only fall back to the cache when the network is unavailable (offline use).
   e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      // Always try network first, fall back to cache
-      var networkFetch = fetch(e.request).then(function(response) {
-        // Only cache valid same-origin or CORS responses, and only clone once
-        if (response && response.status === 200 &&
-            (response.type === 'basic' || response.type === 'cors')) {
-          var toCache = response.clone();
-          caches.open(CACHE).then(function(cache) {
-            cache.put(e.request, toCache);
-          });
-        }
-        return response;
-      }).catch(function() {
-        // Network failed — return cache if available
-        return cached;
-      });
-
-      // Return cache immediately if we have it, but still refresh in background
-      return cached || networkFetch;
+    fetch(e.request).then(function(response) {
+      if (response && response.status === 200 &&
+          (response.type === 'basic' || response.type === 'cors')) {
+        var toCache = response.clone();
+        caches.open(CACHE).then(function(cache) {
+          cache.put(e.request, toCache);
+        });
+      }
+      return response;
+    }).catch(function() {
+      return caches.match(e.request);
     })
   );
 });
