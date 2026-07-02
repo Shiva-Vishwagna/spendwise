@@ -558,6 +558,8 @@ const D = {
     incomeByType: {},
     // {YYYY-MM:{Salary:n,Freelance:n,Bonus:n,...}}
     lastBackupAt: null,
+    netWorthSnapshots: {},
+    // {YYYY-MM: value} — auto-recorded each time the app is opened in that month
     settings: { pin:'1234', activationMonth: null, theme:'dark' }
   }
 };
@@ -581,10 +583,28 @@ const invById  = id => D.data.investments.find(i=>i.id===id);
 const emiById  = id => D.data.emis.find(e=>e.id===id);
 const expById  = id => D.data.expenses.find(e=>e.id===id);
 const personById = id => D.data.people.find(p=>p.id===id);
+function splitBadge(item) {
+  if(item.personId){ const p=personById(item.personId); return p?` <span style="color:var(--ac)">· 👤 ${p.name}</span>`:''; }
+  if(item.splitWith&&item.splitWith.length){
+    const names=item.splitWith.map(id=>(personById(id)||{}).name||'?').join(', ');
+    return ` <span style="color:var(--ac)">· 🔀 ${names}${item.splitIncludeMe===false?'':' +you'}</span>`;
+  }
+  return '';
+}
 function friendLent(personId){ return D.data.friendTxns.filter(t=>t.personId===personId&&t.type==='lent').reduce((s,t)=>s+t.amount,0); }
 function friendReturned(personId){ return D.data.friendTxns.filter(t=>t.personId===personId&&t.type==='returned').reduce((s,t)=>s+t.amount,0); }
 function friendBalance(personId){ return friendLent(personId)-friendReturned(personId); } // positive = they owe you
 function totalFriendsOwed(){ return D.data.people.reduce((s,p)=>s+Math.max(0,friendBalance(p.id)),0); }
+function staleFriendDebts(days) {
+  const now = new Date();
+  return D.data.people.map(p=>{
+    if(friendBalance(p.id)<=0) return null;
+    const lentTxns = D.data.friendTxns.filter(t=>t.personId===p.id&&t.type==='lent').sort((a,b)=>a.date.localeCompare(b.date));
+    const oldest = lentTxns[0]; if(!oldest) return null;
+    const daysSince = Math.floor((now-new Date(oldest.date))/86400000);
+    return daysSince>=days ? {person:p, days:daysSince, balance:friendBalance(p.id)} : null;
+  }).filter(Boolean).sort((a,b)=>b.days-a.days);
+}
 
 const CAT_ICONS = {food:'🍔',groceries:'🛒',transport:'🚗',fuel:'⛽',shopping:'🛍️',
   bills:'⚡',health:'💊',entertainment:'🎬',dining:'🍽️',travel:'✈️',
@@ -622,6 +642,7 @@ function load() {
       arr.forEach(k=>{ if(!p[k]) p[k]=[]; });
       if (!p.budgetIncome) p.budgetIncome={};
       if (!p.incomeByType) p.incomeByType={};
+      if (!p.netWorthSnapshots) p.netWorthSnapshots={};
       if (!p.settings) p.settings={pin:'1234',activationMonth:null};
       // Ensure payHistory on all EMIs
       (p.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
@@ -647,12 +668,12 @@ function daysSinceBackup() {
   return Math.floor(diff/86400000);
 }
 function exportCSV() {
-  const rows=[['Date','Category','Description','Amount','Payment Method','Card/Account','Person','Note']];
+  const rows=[['Date','Category','Description','Your Share','Bill Total','Payment Method','Card/Account','Split With','Note']];
   D.data.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
     const card=e.ccId?ccById(e.ccId):null; const acc=e.accountId?accById(e.accountId):null;
-    const person=e.personId?personById(e.personId):null;
-    rows.push([e.date,e.category,(e.desc||'').replace(/"/g,"'"),e.amount,e.payMethod,
-      card?card.name:(acc?acc.name:'Cash'),person?person.name:'',(e.note||'').replace(/"/g,"'")]);
+    const splitNames=(e.splitWith||[]).map(id=>(personById(id)||{}).name||'?').join('; ');
+    rows.push([e.date,e.category,(e.desc||'').replace(/"/g,"'"),e.amount,e.splitTotal||e.amount,e.payMethod,
+      card?card.name:(acc?acc.name:'Cash'),splitNames,(e.note||'').replace(/"/g,"'")]);
   });
   const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
@@ -679,6 +700,7 @@ function importJSON() {
         (D.data.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
         if(!D.data.budgetIncome) D.data.budgetIncome={};
         if(!D.data.incomeByType) D.data.incomeByType={};
+        if(!D.data.netWorthSnapshots) D.data.netWorthSnapshots={};
         save(); renderAll(); closeAll();
         toast('✅ Data restored successfully','ok');
       } catch(err) { toast('❌ Invalid backup file','err'); }
@@ -795,6 +817,21 @@ function totalBalance() { return D.data.accounts.reduce((s,a)=>s+a.balance,0); }
 function totalInvestments() { return D.data.investments.reduce((s,i)=>s+(i.currentValue||i.principal||0),0); }
 function totalSIP() { return D.data.investments.filter(i=>i.sip>0).reduce((s,i)=>s+i.sip,0); }
 function totalCCOutstanding() { return D.data.ccCards.reduce((s,c)=>s+(c.outstanding||0),0); }
+function totalEMIDebt() { return D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly*e.remaining,0); }
+function currentNetWorth() { return totalBalance()+totalInvestments()+totalFriendsOwed()-totalCCOutstanding()-totalEMIDebt(); }
+function recordNetWorthSnapshot() {
+  const now=new Date(); const key=mk(now.getFullYear(),now.getMonth());
+  D.data.netWorthSnapshots[key]=currentNetWorth();
+}
+function netWorthTrend(months) {
+  const now=new Date(); const out=[];
+  for(let i=months-1;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const key=mk(d.getFullYear(),d.getMonth());
+    if(key in D.data.netWorthSnapshots) out.push({key,y:d.getFullYear(),m:d.getMonth(),v:D.data.netWorthSnapshots[key]});
+  }
+  return out;
+}
 function monthBudget(cat, y, m) {
   const key = mk(y,m);
   const b = D.data.budgets.find(b=>b.category===cat && b.month===key);
@@ -877,6 +914,21 @@ function getUpcomingPayments() {
 //  PIN LOCK
 // ══════════════════════════════════════════════════════════
 let pinBuf = '';
+let lastHiddenAt = null;
+const AUTO_LOCK_MS = 5*60*1000; // re-lock if backgrounded 5+ minutes
+function relock() {
+  const lockEl=document.getElementById('lock'); const appEl=document.getElementById('app');
+  if(!lockEl||!appEl||lockEl.style.display==='flex') return; // already locked / not ready
+  pinBuf='';
+  for(let i=0;i<4;i++){ const el=document.getElementById('pd'+i); if(el) el.classList.remove('on'); }
+  const hint=document.getElementById('phint'); if(hint) hint.innerHTML='';
+  lockEl.style.transition='none'; lockEl.style.opacity='1'; lockEl.style.display='flex';
+  appEl.style.display='none';
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { lastHiddenAt = Date.now(); }
+  else if (lastHiddenAt && D.data.settings?.autoLock!==false && (Date.now()-lastHiddenAt) > AUTO_LOCK_MS) { relock(); }
+});
 function pp(d) {
   if (pinBuf.length >= 4) return;
   pinBuf += d;
@@ -1445,6 +1497,8 @@ function init() {
     D.data.settings.activationMonth = mk(now.getFullYear(), now.getMonth());
     save();
   }
+  recordNetWorthSnapshot();
+  save();
   setTopMonth();
 }
 function setTopMonth() {
@@ -1571,6 +1625,7 @@ function viewPerson(id) {
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <button class="sbtn sm" style="flex:1" onclick="recordFriendReturn('${id}')">💰 Log Return</button>
+      ${bal>0?`<button class="sbtn sec sm" style="flex:1" onclick="settleFriend('${id}')">✅ Settle All</button>`:''}
       <button class="sbtn danger sm" style="flex:1" onclick="deletePerson('${id}')">🗑 Remove</button>
     </div>
     <div style="font-size:.78rem;font-weight:500;margin-bottom:8px">History</div>
@@ -1580,6 +1635,13 @@ function viewPerson(id) {
       <div class="txa ${t.type==='lent'?'db':'cb'}">${t.type==='lent'?'-':'+'}${fmt(t.amount)}</div>
     </div>`).join(''):'<div class="empty" style="padding:14px"><div class="em">No activity yet.</div></div>'}</div>`);
 }
+function settleFriend(personId) {
+  const bal=friendBalance(personId); if(bal<=0) return;
+  if(!confirm(`Mark ${fmt(bal)} as fully paid back?`)) return;
+  D.data.friendTxns.push({id:uid(),personId,type:'returned',amount:bal,date:td(),note:'Settled in full',method:'cash'});
+  save(); closeAll(); renderAll(); navTo('Friends');
+  toast(`✅ Settled up`,'ok');
+}
 function recordFriendReturn(personId) {
   const amt=parseFloat(prompt('Amount returned (₹):')||'');
   if(!amt||amt<=0) return;
@@ -1588,9 +1650,9 @@ function recordFriendReturn(personId) {
   toast(`✅ ${fmt(amt)} logged as returned`,'ok');
 }
 function deletePerson(id) {
-  if(!confirm('Remove this person? Their linked spends stay as personal expenses again, and their return history is cleared.')) return;
-  D.data.expenses.forEach(e=>{ if(e.personId===id) e.personId=null; });
-  D.data.ccSpends.forEach(s=>{ if(s.personId===id) s.personId=null; });
+  if(!confirm('Remove this person? Their linked spends stay recorded as-is (split amounts are not recalculated), and their return history is cleared.')) return;
+  D.data.expenses.forEach(e=>{ if(e.personId===id) e.personId=null; if(e.splitWith) e.splitWith=e.splitWith.filter(pid=>pid!==id); });
+  D.data.ccSpends.forEach(s=>{ if(s.personId===id) s.personId=null; if(s.splitWith) s.splitWith=s.splitWith.filter(pid=>pid!==id); });
   D.data.friendTxns=D.data.friendTxns.filter(t=>t.personId!==id);
   D.data.people=D.data.people.filter(p=>p.id!==id);
   save(); closeAll(); renderAll(); navTo('Friends');
@@ -1626,6 +1688,7 @@ function renderHome() {
   const weekSpend  = isCurM ? getWeekSpend()  : 0;
   const streak     = isCurM ? noSpendStreakDays() : 0;
   const backupDays = daysSinceBackup();
+  const staleFriends = isCurM ? staleFriendDebts(30) : [];
   // 6-month chart
   const chart6=[]; for(let i=5;i>=0;i--){const d=new Date(y,m-i,1);const cy=d.getFullYear(),cm=d.getMonth();chart6.push({y:cy,m:cm,v:monthExpenses(cy,cm).reduce((s,e)=>s+e.amount,0)});}
   const maxV=Math.max(...chart6.map(c=>c.v),1);
@@ -1670,6 +1733,8 @@ function renderHome() {
   ${nextInc?`<div class="notice bl fi2" style="cursor:pointer" onclick="selMonth(${nextD.getFullYear()},${nextD.getMonth()})"><span>⏭</span><div><strong>Next month income pre-set: ${fmt(nextInc)}</strong> for ${MN[nextD.getMonth()]} ${nextD.getFullYear()} — tap to view</div></div>`:''}
 
   ${(backupDays===null||backupDays>=14)?`<div class="notice am fi2" style="cursor:pointer" onclick="exportJSON()"><span>💾</span><div><strong>${backupDays===null?"You've never backed up your data.":`Last backup was ${backupDays} days ago.`}</strong> Tap to download a fresh JSON backup — your data only lives on this device.</div></div>`:''}
+
+  ${staleFriends.length?`<div class="notice am fi2" style="cursor:pointer" onclick="navTo('Friends')"><span>🧑‍🤝‍🧑</span><div><strong>${staleFriends.length===1?staleFriends[0].person.name+' has owed you '+fmt(staleFriends[0].balance)+' for '+staleFriends[0].days+' days.':staleFriends.length+' friends have owed you money for 30+ days.'}</strong> Tap to follow up.</div></div>`:''}
 
   <!-- QUICK ACTIONS -->
   <div class="qg fi2">
@@ -1797,10 +1862,10 @@ function renderHome() {
         return`<div class="txi" onclick="editExpense('${tx.id}')">
           <div class="tico ${icon}">${CAT_ICONS[tx.category]||'📦'}</div>
           <div style="flex:1;min-width:0">
-            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.6rem;color:var(--ac2)">🔁</span>`:''}</div>
+            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.6rem;color:var(--ac2)">🔁</span>`:''}${splitBadge(tx)}</div>
             <div class="txs">${tx.category}${card?' · 💳'+card.name:acc?' · '+acc.name:''} · ${tx.date}</div>
           </div>
-          <div class="txa db">-${fmt(tx.amount)}</div>
+          <div class="txa db">-${fmt(tx.amount)}${tx.splitTotal?`<div style="font-size:.56rem;color:var(--t3);font-weight:400">of ${fmt(tx.splitTotal)}</div>`:''}</div>
         </div>`;}).join('')
       :`<div class="empty"><div class="eic">📭</div><div class="em">No expenses yet. Tap + to add.</div></div>`}
     </div>
@@ -2151,9 +2216,9 @@ function renderCC() {
       ${(()=>{
         const mKey=mk(D.sel.y,D.sel.m);
         const spends=D.data.ccSpends.filter(s=>s.date.startsWith(mKey)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
-        return spends.length?spends.map(s=>{const card=ccById(s.cardId);const p=s.personId?personById(s.personId):null;return`<div class="txi">
+        return spends.length?spends.map(s=>{const card=ccById(s.cardId);return`<div class="txi">
           <div class="tico cc">${CAT_ICONS[s.category]||'💳'}</div>
-          <div style="flex:1;min-width:0"><div class="txn">${s.desc}${p?` <span style="color:var(--ac)">· 👤 ${p.name}</span>`:''}</div><div class="txs">${card?card.name:''} · ${s.category} · ${s.date}</div></div>
+          <div style="flex:1;min-width:0"><div class="txn">${s.desc}${splitBadge(s)}</div><div class="txs">${card?card.name:''} · ${s.category} · ${s.date}</div></div>
           <div class="txa db">-${fmt(s.amount)}</div>
         </div>`;}).join(''):'<div class="empty"><div class="eic">💳</div><div class="em">No CC spends this month.</div></div>';
       })()}
@@ -2185,7 +2250,17 @@ function viewCCCard(id) {
   const pays=D.data.ccPayments.filter(p=>p.cardId===id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   const avail=Math.max(0,(card.limit||0)-(card.outstanding||0));
   const byPerson={};
-  allSpends.forEach(s=>{ const key=s.personId||'__me__'; byPerson[key]=(byPerson[key]||0)+s.amount; });
+  allSpends.forEach(s=>{
+    if(s.personId){ byPerson[s.personId]=(byPerson[s.personId]||0)+s.amount; }
+    else if(s.splitWith&&s.splitWith.length){
+      const shareCount=s.splitIncludeMe===false?s.splitWith.length:s.splitWith.length+1;
+      const share=s.amount/shareCount;
+      s.splitWith.forEach(pid=>{ byPerson[pid]=(byPerson[pid]||0)+share; });
+      if(s.splitIncludeMe!==false) byPerson.__me__=(byPerson.__me__||0)+share;
+    } else {
+      byPerson.__me__=(byPerson.__me__||0)+s.amount;
+    }
+  });
   const personRows=Object.keys(byPerson).map(k=>({label:k==='__me__'?'👤 Me':'👤 '+(personById(k)?.name||'Unknown'),amt:byPerson[k]})).sort((a,b)=>b.amt-a.amt);
   openMod('💳 '+card.name,`
     <div style="background:linear-gradient(135deg,${card.color||'#6c63ff'}30,${card.color||'#6c63ff'}10);border-radius:13px;padding:15px;margin-bottom:14px">
@@ -2215,11 +2290,11 @@ function viewCCCard(id) {
     ${personRows.length>1?`<div style="font-size:.78rem;font-weight:500;margin-bottom:8px">Spends by Person</div>
     <div style="margin-bottom:14px">${personRows.map(r=>`<div class="split-member"><div class="split-name">${r.label}</div><div class="split-amt">${fmt(r.amt)}</div></div>`).join('')}</div>`:''}
     <div style="font-size:.78rem;font-weight:500;margin-bottom:8px">Recent Spends</div>
-    <div class="txl">${spends.length?spends.map(s=>{const p=s.personId?personById(s.personId):null;return`<div class="txi">
+    <div class="txl">${spends.length?spends.map(s=>`<div class="txi">
       <div class="tico cc">${CAT_ICONS[s.category]||'💳'}</div>
-      <div style="flex:1"><div class="txn">${s.desc}${p?` <span style="color:var(--ac)">· 👤 ${p.name}</span>`:''}</div><div class="txs">${s.category} · ${s.date}</div></div>
+      <div style="flex:1"><div class="txn">${s.desc}${splitBadge(s)}</div><div class="txs">${s.category} · ${s.date}</div></div>
       <div class="txa db">-${fmt(s.amount)}</div>
-    </div>`;}).join(''):'<div class="empty" style="padding:14px"><div class="em">No spends recorded.</div></div>'}</div>
+    </div>`).join(''):'<div class="empty" style="padding:14px"><div class="em">No spends recorded.</div></div>'}</div>
     <div style="font-size:.78rem;font-weight:500;margin:12px 0 8px">Payment History</div>
     <div class="txl">${pays.length?pays.map(p=>{const acc=accById(p.accountId);return`<div class="txi">
       <div class="tico cr">✅</div>
@@ -2428,7 +2503,8 @@ function renderReport() {
 
   const filterState = D._reportFilter || 'all';
   const searchQ = D._reportSearch || '';
-  let allExps = [...exps].sort((a,b)=>b.date.localeCompare(a.date));
+  const showFriendSpends = D._reportShowFriend || false;
+  let allExps = [...(showFriendSpends?monthExpensesAll(y,m):exps)].sort((a,b)=>b.date.localeCompare(a.date));
   if (filterState !== 'all') allExps = allExps.filter(e=>e.category===filterState||e.payMethod===filterState);
   if (searchQ) allExps = allExps.filter(e=>(e.desc||'').toLowerCase().includes(searchQ.toLowerCase())||(e.category||'').includes(searchQ.toLowerCase()));
 
@@ -2471,6 +2547,25 @@ function renderReport() {
       </div>`).join('')}
     </div>
   </div>
+
+  <!-- CATEGORY BREAKDOWN WITH TRENDS -->
+  ${(()=>{
+    const nw=netWorthTrend(6); if(!nw.length) return '';
+    const maxNW=Math.max(...nw.map(c=>Math.abs(c.v)),1);
+    const latest=nw[nw.length-1].v; const first=nw[0].v; const chg=latest-first;
+    return `<div class="card fi2">
+      <div class="sh"><div class="st">📈 Net Worth Trend</div><span class="bdg ${chg>=0?'g':'r'}">${chg>=0?'+':''}${fmt(chg)}</span></div>
+      <div style="font-family:var(--fm);font-size:1.1rem;margin-bottom:8px;color:${latest>=0?'var(--g)':'var(--r)'}">${fmt(latest)}</div>
+      <div class="cbr">
+        ${nw.map(c=>`<div class="bw ${c.y===y&&c.m===m?'cur':''}">
+          <div class="bamt">${fmt(c.v)}</div>
+          <div class="bar" style="height:${Math.max(4,Math.abs(c.v)/maxNW*100).toFixed(0)}%;background:${c.v>=0?'':'var(--r)'}"></div>
+          <div class="bl2">${MS[c.m]}</div>
+        </div>`).join('')}
+      </div>
+      <div style="font-size:.6rem;color:var(--t3);margin-top:6px">Assets (accounts + investments + owed by friends) minus CC dues &amp; EMI debt. Snapshot taken each time you open the app.</div>
+    </div>`;
+  })()}
 
   <!-- CATEGORY BREAKDOWN WITH TRENDS -->
   ${sortedCats.length?`<div class="card fi2">
@@ -2531,15 +2626,18 @@ function renderReport() {
       ${['all','cash','account','cc','food','groceries','dining','transport','shopping','bills','health','entertainment','other'].map(f=>`
         <div class="fchip${filterState===f?' on':''}" onclick="D._reportFilter='${f}';renderReport()">${f==='all'?'All':f==='account'?'🏦 Bank':f==='cc'?'💳 Card':(CAT_ICONS[f]||'📦')+' '+f}</div>`).join('')}
     </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--t2);margin:8px 0;cursor:pointer">
+      <input type="checkbox" ${showFriendSpends?'checked':''} onchange="D._reportShowFriend=this.checked;renderReport()"/> Include split / friend-tagged spends (excluded from totals above)
+    </label>
     <div class="txl">
       ${allExps.length?allExps.map(tx=>{const acc=accById(tx.accountId);const card=ccById(tx.ccId);
         return`<div class="txi" onclick="editExpense('${tx.id}')">
           <div class="tico sp">${CAT_ICONS[tx.category]||'📦'}</div>
           <div style="flex:1;min-width:0">
-            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.58rem;color:var(--ac2)">🔁</span>`:''}</div>
+            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.58rem;color:var(--ac2)">🔁</span>`:''}${splitBadge(tx)}</div>
             <div class="txs">${tx.category}${card?' · 💳'+card.name:acc?' · '+acc.name:''} · ${tx.date}${tx.payMethod?` · ${tx.payMethod==='cc'?'CC':tx.payMethod==='account'?'Bank':'Cash'}`:''}</div>
           </div>
-          <div class="txa db">-${fmt(tx.amount)}</div>
+          <div class="txa db">-${fmt(tx.amount)}${tx.splitTotal?`<div style="font-size:.56rem;color:var(--t3);font-weight:400">of ${fmt(tx.splitTotal)}</div>`:''}</div>
         </div>`;}).join('')
       :`<div class="empty"><div class="eic">📭</div><div class="em">No transactions${searchQ?' matching your search':' this month'}.</div></div>`}
     </div>
@@ -2593,6 +2691,16 @@ function renderAdviser() {
   const spPct=income>0?spent/income*100:0;
   const emPct=income>0?emiAmt/income*100:0;
   const closing=D.data.emis.filter(e=>e.remaining>0&&e.remaining<=3);
+  const cats={}; exps.forEach(e=>{cats[e.category]=(cats[e.category]||0)+e.amount;});
+  const lmD=new Date(y,m-1,1); const lastCats={};
+  monthExpenses(lmD.getFullYear(),lmD.getMonth()).forEach(e=>{lastCats[e.category]=(lastCats[e.category]||0)+e.amount;});
+  let biggestJump=null;
+  Object.keys(cats).forEach(cat=>{
+    const now2=cats[cat], prev=lastCats[cat]||0;
+    if(prev>=500){ const diffPct=(now2-prev)/prev*100;
+      if(diffPct>25 && (!biggestJump||diffPct>biggestJump.diffPct)) biggestJump={cat,now2,prev,diffPct};
+    }
+  });
   const s1=income>0?Math.max(0,100-spPct):0;
   const s2=income>0?Math.max(0,100-emPct*2):50;
   const s3=income>0?Math.min(100,sipAmt/income*1000):0;
@@ -2611,6 +2719,7 @@ function renderAdviser() {
   else if(sipAmt>0)insights.push({t:'ok',m:`SIP discipline: ${fmt(sipAmt)}/mo invested. In 10 yrs at 12% → ${fmt(calcSIPValue(sipAmt,12,120))}.`});
   const pendingEMICount = pendingEMIsForMonth(y,m).length;
   if(pendingEMICount>0)insights.push({t:'w',m:`<strong>${pendingEMICount} EMI${pendingEMICount>1?'s':''} still pending</strong> for ${MS[m]}. Mark as paid after payment to keep records accurate.`});
+  if(biggestJump)insights.push({t:'w',m:`<strong>${CAT_ICONS[biggestJump.cat]||'📦'} ${biggestJump.cat} spend up ${biggestJump.diffPct.toFixed(0)}%</strong> vs last month (${fmt(biggestJump.prev)} → ${fmt(biggestJump.now2)}).`});
   closing.forEach(e=>{const fv=calcSIPValue(Math.round(e.monthly*.7),12,120);insights.push({t:'ok',m:`<strong>🎉 ${e.name}</strong> closes in ${e.remaining} month${e.remaining!==1?'s':''}! Redirect ${fmt(Math.round(e.monthly*.7))}/mo into SIP → <strong>${fmt(fv)}</strong> in 10 yrs.`});});
   const totalDebt=D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly*e.remaining,0);
   if(totalDebt>0&&income>0)insights.push({t:'tip',m:`Total debt: ${fmt(totalDebt)} (${(totalDebt/income).toFixed(1)} months of income). See <strong>Debt Reduction</strong> in Reports.`});
@@ -2731,7 +2840,7 @@ function openAdd(type, editId) {
         <input class="fi" id="fDesc" value="${ex?ex.desc:''}" placeholder="What did you spend on?"/></div>
       <div class="frow">
         <div class="fg"><label class="fl">Amount (₹)</label>
-          <input class="fi" type="number" id="fAmt" value="${ex?ex.amount:''}" placeholder="0" inputmode="decimal"/></div>
+          <input class="fi" type="number" id="fAmt" value="${ex?(typeof ex.splitTotal==='number'?ex.splitTotal:ex.amount):''}" placeholder="0" inputmode="decimal"/></div>
         <div class="fg"><label class="fl">Date</label>
           <input class="fi" type="date" id="fDate" value="${ex?ex.date:td()}"/></div>
       </div>
@@ -2751,13 +2860,17 @@ function openAdd(type, editId) {
         <select class="fs" id="fCC"><option value="">— select card —</option>${ccOpts||'<option>Add a CC card first</option>'}</select>
         <div class="fhint">Added to card outstanding balance.</div>
       </div>
-      <div class="fg"><label class="fl">Spent for (optional)</label>
-        <select class="fs" id="fPerson" onchange="onPersonSelectChange()">
-          <option value="">— Personal spend —</option>
-          ${D.data.people.map(p=>`<option value="${p.id}" ${ex&&ex.personId===p.id?'selected':''}>👤 ${p.name}</option>`).join('')}
-          <option value="__new__">➕ Add new person</option>
-        </select>
-        <div class="fhint">Tag this if you paid for a friend/family member — it won't count in your personal spending totals, and is tracked in Friends so you can log when they pay you back.</div>
+      <div class="fg"><label class="fl">Split with (optional)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="fSplitPeople">
+          ${D.data.people.map(p=>`<label style="display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 10px;border-radius:20px;font-size:.72rem;cursor:pointer;border:1px solid var(--border)">
+            <input type="checkbox" class="fSplitChk" value="${p.id}" ${ex&&ex.splitWith&&ex.splitWith.includes(p.id)?'checked':''} style="margin:0"/> 👤 ${p.name}
+          </label>`).join('')}
+          <button type="button" class="sbtn sec sm" style="width:auto;padding:6px 12px;font-size:.72rem" onclick="quickAddSplitPerson()">➕ New</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.74rem;color:var(--t2);cursor:pointer">
+          <input type="checkbox" id="fSplitIncludeMe" ${!ex||ex.splitIncludeMe!==false?'checked':''}/> Split evenly including my own share
+        </label>
+        <div class="fhint">Tick people above if this bill was shared. With "include my share" ✓, the amount splits evenly between you and them (only your share counts as personal spend). Unticked, the whole amount is split among just them — none of it counts as your spend. Leave everyone unticked for a normal personal expense.</div>
       </div>
       <div class="fg"><label class="fl">Note (optional)</label>
         <input class="fi" id="fNote" value="${ex?ex.note||'':''}" placeholder="Any additional notes"/></div>
@@ -3089,17 +3202,17 @@ function onPayMethodChange() {
   if(ar) ar.style.display=v==='account'?'block':'none';
   if(cr) cr.style.display=v==='cc'?'block':'none';
 }
-function onPersonSelectChange() {
-  const sel=document.getElementById('fPerson'); if(!sel) return;
-  if(sel.value==='__new__') {
-    const name=(prompt('Friend / person name:')||'').trim();
-    if(!name) { sel.value=''; return; }
-    const p={id:uid(),name,color:'#6c63ff'};
-    D.data.people.push(p); save();
-    const opt=document.createElement('option');
-    opt.value=p.id; opt.textContent='👤 '+p.name;
-    sel.insertBefore(opt, sel.lastElementChild);
-    sel.value=p.id;
+function quickAddSplitPerson() {
+  const name=(prompt('Friend / person name:')||'').trim();
+  if(!name) return;
+  const p={id:uid(),name,color:'#6c63ff'};
+  D.data.people.push(p); save();
+  const wrap=document.getElementById('fSplitPeople');
+  if(wrap){
+    const lbl=document.createElement('label');
+    lbl.style.cssText='display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 10px;border-radius:20px;font-size:.72rem;cursor:pointer;border:1px solid var(--border)';
+    lbl.innerHTML=`<input type="checkbox" class="fSplitChk" value="${p.id}" checked style="margin:0"/> 👤 ${p.name}`;
+    wrap.insertBefore(lbl, wrap.lastElementChild);
   }
 }
 function onIncMonthChange() {
@@ -3168,49 +3281,55 @@ function updateSIPHint() {
 function saveExpense(editId) {
   const cat=document.getElementById('fCat').value;
   const desc=document.getElementById('fDesc').value.trim();
-  const amt=parseFloat(document.getElementById('fAmt').value);
+  const billAmt=parseFloat(document.getElementById('fAmt').value);
   const date=document.getElementById('fDate').value;
   const method=document.getElementById('fPayMethod')?.value||'cash';
   const accId=method==='account'?(document.getElementById('fAcc')?.value||''):'';
   const ccId=method==='cc'?(document.getElementById('fCC')?.value||''):'';
   const note=document.getElementById('fNote')?.value||'';
   const recurring=document.getElementById('fRecurring')?.value||'';
-  const personId=(document.getElementById('fPerson')?.value||'').trim();
-  const personIdSafe=(personId&&personId!=='__new__')?personId:'';
-  if(!amt||amt<=0) return toast('Enter a valid amount','err');
+  const splitWith=Array.from(document.querySelectorAll('.fSplitChk:checked')).map(el=>el.value);
+  const splitIncludeMe=document.getElementById('fSplitIncludeMe')?.checked!==false;
+  if(!billAmt||billAmt<=0) return toast('Enter a valid amount','err');
   if(!date) return toast('Pick a date','err');
   if(method==='cc'&&!ccId) return toast('Select a credit card','err');
 
+  const isSplit=splitWith.length>0;
+  const shareCount=isSplit?(splitIncludeMe?splitWith.length+1:splitWith.length):1;
+  const perShare=isSplit?billAmt/shareCount:billAmt;
+  const personalAmt=isSplit?(splitIncludeMe?perShare:0):billAmt;
+  const legacyPersonId=(!isSplit)?'':''; // split UI fully replaces the old single-person tag
+
   if(editId) {
     const ex=expById(editId); if(!ex) return;
-    // Reverse old account/CC effects
-    if(ex.payMethod==='account'&&ex.accountId){const old=accById(ex.accountId);if(old)old.balance+=ex.amount;}
-    if(ex.payMethod==='cc'&&ex.ccId){const oc=ccById(ex.ccId);if(oc)oc.outstanding=Math.max(0,(oc.outstanding||0)-ex.amount);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==editId);}
+    const oldFull=(typeof ex.splitTotal==='number')?ex.splitTotal:ex.amount;
+    // Reverse old account/CC effects using the FULL original bill amount
+    if(ex.payMethod==='account'&&ex.accountId){const old=accById(ex.accountId);if(old)old.balance+=oldFull;}
+    if(ex.payMethod==='cc'&&ex.ccId){const oc=ccById(ex.ccId);if(oc)oc.outstanding=Math.max(0,(oc.outstanding||0)-oldFull);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==editId);}
     D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==editId);
-    Object.assign(ex,{category:cat,desc:desc||cat,amount:amt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,personId:personIdSafe||null});
-    if(personIdSafe) D.data.friendTxns.push({id:uid(),personId:personIdSafe,type:'lent',amount:amt,date,note:desc||cat,method,expenseId:editId});
+    Object.assign(ex,{category:cat,desc:desc||cat,amount:personalAmt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,
+      personId:null,splitWith:isSplit?splitWith:null,splitIncludeMe:isSplit?splitIncludeMe:null,splitTotal:isSplit?billAmt:null});
+    if(isSplit) splitWith.forEach(pid=>D.data.friendTxns.push({id:uid(),personId:pid,type:'lent',amount:perShare,date,note:desc||cat,method,expenseId:editId}));
+    // Apply new CC/account effects using the full bill amount
+    if(method==='account'&&accId) debit(accId,billAmt,desc||cat,date);
+    if(method==='cc'&&ccId){
+      const card=ccById(ccId);
+      if(card){card.outstanding=(card.outstanding||0)+billAmt;D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:editId,date,desc:desc||cat,amount:billAmt,category:cat,personId:null,splitWith:isSplit?splitWith:null});}
+    }
   } else {
     const expId=uid();
-    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:amt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,personId:personIdSafe||null});
+    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:personalAmt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,
+      personId:null,splitWith:isSplit?splitWith:null,splitIncludeMe:isSplit?splitIncludeMe:null,splitTotal:isSplit?billAmt:null});
+    if(method==='account'&&accId) debit(accId,billAmt,desc||cat,date);
     if(method==='cc'&&ccId) {
       const card=ccById(ccId);
-      if(card){card.outstanding=(card.outstanding||0)+amt;D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:expId,date,desc:desc||cat,amount:amt,category:cat,personId:personIdSafe||null});}
+      if(card){card.outstanding=(card.outstanding||0)+billAmt;D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:expId,date,desc:desc||cat,amount:billAmt,category:cat,personId:null,splitWith:isSplit?splitWith:null});}
     }
-    if(personIdSafe) D.data.friendTxns.push({id:uid(),personId:personIdSafe,type:'lent',amount:amt,date,note:desc||cat,method,expenseId:expId});
-  }
-  // Apply new effects
-  if(method==='account'&&accId) debit(accId,amt,desc||cat,date);
-  if(method==='cc'&&ccId&&editId){
-    // Only add CC effects for edit (new add already done above)
-    const card=ccById(ccId);
-    if(card){
-      card.outstanding=(card.outstanding||0)+amt;
-      D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:editId,date,desc:desc||cat,amount:amt,category:cat,personId:personIdSafe||null});
-    }
+    if(isSplit) splitWith.forEach(pid=>D.data.friendTxns.push({id:uid(),personId:pid,type:'lent',amount:perShare,date,note:desc||cat,method,expenseId:expId}));
   }
   save(); renderAll(); closeAll();
-  const card=ccById(ccId);const acc=accById(accId);const person=personById(personIdSafe);
-  toast(`✅ ${fmt(amt)} ${editId?'updated':'added'}${person?' for '+person.name:card?' on '+card.name:acc?' from '+acc.name:''}`, 'ok');
+  const card=ccById(ccId);const acc=accById(accId);
+  toast(`✅ ${fmt(billAmt)} ${editId?'updated':'added'}${isSplit?' · split '+shareCount+' ways':card?' on '+card.name:acc?' from '+acc.name:''}`, 'ok');
 }
 
 function duplicateExpense(id) {
@@ -3218,15 +3337,20 @@ function duplicateExpense(id) {
   const newId = uid();
   const copy = Object.assign({}, ex, {id:newId, date:td()});
   D.data.expenses.push(copy);
-  if (copy.payMethod==='account'&&copy.accountId) debit(copy.accountId, copy.amount, '(Duplicate) '+copy.desc, copy.date);
+  const fullAmt=(typeof copy.splitTotal==='number')?copy.splitTotal:copy.amount;
+  if (copy.payMethod==='account'&&copy.accountId) debit(copy.accountId, fullAmt, '(Duplicate) '+copy.desc, copy.date);
   if (copy.payMethod==='cc'&&copy.ccId) {
     const card=ccById(copy.ccId);
     if (card) {
-      card.outstanding=(card.outstanding||0)+copy.amount;
-      D.data.ccSpends.push({id:uid(),cardId:copy.ccId,expenseId:newId,date:copy.date,desc:'(Dup) '+copy.desc,amount:copy.amount,category:copy.category,personId:copy.personId||null});
+      card.outstanding=(card.outstanding||0)+fullAmt;
+      D.data.ccSpends.push({id:uid(),cardId:copy.ccId,expenseId:newId,date:copy.date,desc:'(Dup) '+copy.desc,amount:fullAmt,category:copy.category,personId:null,splitWith:copy.splitWith||null});
     }
   }
-  if (copy.personId) D.data.friendTxns.push({id:uid(),personId:copy.personId,type:'lent',amount:copy.amount,date:copy.date,note:'(Dup) '+copy.desc,method:copy.payMethod,expenseId:newId});
+  if (copy.splitWith&&copy.splitWith.length) {
+    const shareCount=copy.splitIncludeMe?copy.splitWith.length+1:copy.splitWith.length;
+    const perShare=fullAmt/shareCount;
+    copy.splitWith.forEach(pid=>D.data.friendTxns.push({id:uid(),personId:pid,type:'lent',amount:perShare,date:copy.date,note:'(Dup) '+copy.desc,method:copy.payMethod,expenseId:newId}));
+  }
   save(); renderAll(); closeAll();
   toast('✅ Expense duplicated for today','ok');
 }
@@ -3234,8 +3358,9 @@ function duplicateExpense(id) {
 function deleteExpense(id) {
   if(!confirm('Delete this expense?')) return;
   const ex=expById(id); if(!ex) return;
-  if(ex.payMethod==='account'&&ex.accountId){const acc=accById(ex.accountId);if(acc)acc.balance+=ex.amount;}
-  if(ex.payMethod==='cc'&&ex.ccId){const card=ccById(ex.ccId);if(card)card.outstanding=Math.max(0,(card.outstanding||0)-ex.amount);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==id);}
+  const fullAmt=(typeof ex.splitTotal==='number')?ex.splitTotal:ex.amount;
+  if(ex.payMethod==='account'&&ex.accountId){const acc=accById(ex.accountId);if(acc)acc.balance+=fullAmt;}
+  if(ex.payMethod==='cc'&&ex.ccId){const card=ccById(ex.ccId);if(card)card.outstanding=Math.max(0,(card.outstanding||0)-fullAmt);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==id);}
   D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==id);
   D.data.expenses=D.data.expenses.filter(e=>e.id!==id);
   save(); renderAll(); closeAll(); toast('Expense deleted','ok');
@@ -3576,6 +3701,12 @@ function openSettings() {
       <div class="fg"><label class="fl">New PIN</label><input class="fi" type="password" id="sPin" maxlength="4" placeholder="4 digits"/></div>
       <div class="fg"><label class="fl">Confirm PIN</label><input class="fi" type="password" id="sPin2" maxlength="4" placeholder="confirm"/></div>
     </div>
+    <div class="fg"><label class="fl">Auto-lock when backgrounded</label>
+      <select class="fs" id="sAutoLock">
+        <option value="yes" ${D.data.settings?.autoLock!==false?'selected':''}>On — re-lock after 5 min in background</option>
+        <option value="no" ${D.data.settings?.autoLock===false?'selected':''}>Off</option>
+      </select>
+    </div>
     <div style="font-size:.7rem;color:var(--t3);margin-bottom:14px;line-height:1.6">
       App activated: <strong>${MN[act.m]} ${act.y}</strong><br>
       EMI auto-deductions from: <strong>${(()=>{const nx=new Date(act.y,act.m+1,1);return MN[nx.getMonth()]+' '+nx.getFullYear();})()}</strong>
@@ -3624,7 +3755,9 @@ function saveSettings() {
   const def=parseFloat(document.getElementById('sDef').value)||0;
   const pin=document.getElementById('sPin').value;
   const pin2=document.getElementById('sPin2').value;
+  const autoLockEl=document.getElementById('sAutoLock');
   D.data.defaultIncome=def;
+  if(autoLockEl) D.data.settings.autoLock = autoLockEl.value!=='no';
   if(pin){
     if(!/^\d{4}$/.test(pin)) return toast('PIN must be 4 digits','err');
     if(pin!==pin2) return toast('PINs do not match','err');
