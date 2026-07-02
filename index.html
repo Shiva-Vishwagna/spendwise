@@ -490,6 +490,7 @@ textarea.fi{resize:vertical;min-height:90px;font-family:var(--fm);font-size:.75r
   <div id="pgAdviser" class="pg">   <div class="cnt" id="cAdviser"></div></div>
   <div id="pgCashFlow" class="pg">  <div class="cnt" id="cCashFlow"></div></div>
   <div id="pgImport"   class="pg">   <div class="cnt" id="cImport"></div></div>
+  <div id="pgFriends" class="pg">   <div class="cnt" id="cFriends"></div></div>
 
   <div class="bnav">
     <div class="ni on" id="nHome"    onclick="openPage('Home')">   <div class="niic">🏠</div><div class="nilb">Home</div></div>
@@ -548,8 +549,14 @@ const D = {
     // {id,category,amount,month}  month='YYYY-MM'
     transactions: [],
     // {id,accountId,type:'cr'|'dr',amount,desc,date}
+    people: [],
+    // {id,name,color}  -- friends/family who use your cards or borrow money
+    friendTxns: [],
+    // {id,personId,type:'lent'|'returned',amount,date,note,method,expenseId,accountId}
     defaultIncome: 0,
     budgetIncome: {},
+    incomeByType: {},
+    // {YYYY-MM:{Salary:n,Freelance:n,Bonus:n,...}}
     settings: { pin:'1234', activationMonth: null, theme:'dark' }
   }
 };
@@ -572,6 +579,11 @@ const chitById = id => D.data.chits.find(c=>c.id===id);
 const invById  = id => D.data.investments.find(i=>i.id===id);
 const emiById  = id => D.data.emis.find(e=>e.id===id);
 const expById  = id => D.data.expenses.find(e=>e.id===id);
+const personById = id => D.data.people.find(p=>p.id===id);
+function friendLent(personId){ return D.data.friendTxns.filter(t=>t.personId===personId&&t.type==='lent').reduce((s,t)=>s+t.amount,0); }
+function friendReturned(personId){ return D.data.friendTxns.filter(t=>t.personId===personId&&t.type==='returned').reduce((s,t)=>s+t.amount,0); }
+function friendBalance(personId){ return friendLent(personId)-friendReturned(personId); } // positive = they owe you
+function totalFriendsOwed(){ return D.data.people.reduce((s,p)=>s+Math.max(0,friendBalance(p.id)),0); }
 
 const CAT_ICONS = {food:'🍔',groceries:'🛒',transport:'🚗',fuel:'⛽',shopping:'🛍️',
   bills:'⚡',health:'💊',entertainment:'🎬',dining:'🍽️',travel:'✈️',
@@ -605,9 +617,10 @@ function load() {
     try {
       const p = JSON.parse(raw);
       const arr = ['accounts','expenses','incomes','emis','investments','transactions',
-                   'ccCards','ccSpends','ccPayments','chits','budgets','goals'];
+                   'ccCards','ccSpends','ccPayments','chits','budgets','goals','people','friendTxns'];
       arr.forEach(k=>{ if(!p[k]) p[k]=[]; });
       if (!p.budgetIncome) p.budgetIncome={};
+      if (!p.incomeByType) p.incomeByType={};
       if (!p.settings) p.settings={pin:'1234',activationMonth:null};
       // Ensure payHistory on all EMIs
       (p.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
@@ -636,10 +649,11 @@ function importJSON() {
         if (!p.accounts) throw new Error('Invalid file');
         D.data = p;
         const arr = ['accounts','expenses','incomes','emis','investments','transactions',
-                     'ccCards','ccSpends','ccPayments','chits','budgets','goals'];
+                     'ccCards','ccSpends','ccPayments','chits','budgets','goals','people','friendTxns'];
         arr.forEach(k=>{ if(!D.data[k]) D.data[k]=[]; });
         (D.data.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
         if(!D.data.budgetIncome) D.data.budgetIncome={};
+        if(!D.data.incomeByType) D.data.incomeByType={};
         save(); renderAll(); closeAll();
         toast('✅ Data restored successfully','ok');
       } catch(err) { toast('❌ Invalid backup file','err'); }
@@ -688,11 +702,38 @@ function editAccountBalance(id, newBal, reason) {
 //  MONTH DATA
 // ══════════════════════════════════════════════════════════
 function monthExpenses(y, m) {
+  // Personal spending only — excludes CC/cash spends made on behalf of a friend (personId set).
+  const key = mk(y, m);
+  return D.data.expenses.filter(e => e.date.startsWith(key) && !e.personId);
+}
+function monthExpensesAll(y, m) {
+  // Everything including friend-tagged spends — use for CC card views / audits.
   const key = mk(y, m);
   return D.data.expenses.filter(e => e.date.startsWith(key));
 }
-function monthIncome(y, m) {
+function monthIncomeByType(y, m) {
   const key = mk(y, m);
+  return D.data.incomeByType[key] || {};
+}
+function monthSalaryIncome(y, m) {
+  return monthIncomeByType(y, m).Salary || 0;
+}
+function monthOtherIncome(y, m) {
+  const t = monthIncomeByType(y, m);
+  return Object.keys(t).filter(k => k !== 'Salary').reduce((s, k) => s + (t[k] || 0), 0);
+}
+function monthTotalIncome(y, m) {
+  const key = mk(y, m);
+  const t = D.data.incomeByType[key];
+  if (t && Object.keys(t).length) return Object.values(t).reduce((s, v) => s + (v || 0), 0);
+  return D.data.budgetIncome[key] || D.data.defaultIncome || 0;
+}
+function monthIncome(y, m) {
+  // "Main income" = Salary once itemized income has been recorded for the month;
+  // falls back to the legacy blended figure for months entered before this existed.
+  const key = mk(y, m);
+  const t = D.data.incomeByType[key];
+  if (t && Object.keys(t).length) return t.Salary || 0;
   return D.data.budgetIncome[key] || D.data.defaultIncome || 0;
 }
 function getEMIMonthStatus(emiId, y, m) {
@@ -847,13 +888,13 @@ function pd() {
 // ══════════════════════════════════════════════════════════
 function getTodaySpend() {
   const today = td();
-  return D.data.expenses.filter(e=>e.date===today).reduce((s,e)=>s+e.amount,0);
+  return D.data.expenses.filter(e=>e.date===today&&!e.personId).reduce((s,e)=>s+e.amount,0);
 }
 function getWeekSpend() {
   const now = new Date();
   const ago = new Date(now); ago.setDate(ago.getDate()-6);
   const from = ago.toISOString().split('T')[0];
-  return D.data.expenses.filter(e=>e.date>=from&&e.date<=td()).reduce((s,e)=>s+e.amount,0);
+  return D.data.expenses.filter(e=>e.date>=from&&e.date<=td()&&!e.personId).reduce((s,e)=>s+e.amount,0);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1395,6 +1436,7 @@ function renderPage(name) {
   else if (name==='Import')   renderImport();
   else if (name==='Calendar') renderCalendar();
   else if (name==='Recurring') renderRecurring();
+  else if (name==='Friends') renderFriends();
 }
 function renderAll() {
   setTopMonth();
@@ -1433,6 +1475,90 @@ function openMonthPicker() {
 function selMonth(y, m) { D.sel={y,m}; closeAll(); renderAll(); }
 
 // ══════════════════════════════════════════════════════════
+//  FRIENDS & SPLITS
+// ══════════════════════════════════════════════════════════
+function renderFriends() {
+  const pg=document.getElementById('cFriends');
+  if(!pg)return;
+  const owed=totalFriendsOwed();
+  const recentTxns=[...D.data.friendTxns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+  pg.innerHTML=`
+  <div class="hero fi2" style="padding:16px">
+    <div class="hl">Friends & Splits</div>
+    <div class="ha" style="font-size:1.4rem">${fmt(owed)}</div>
+    <div class="ht"><span style="color:${owed>0?'var(--g)':'var(--t3)'}">${owed>0?'owed to you across '+D.data.people.length+' people':'no outstanding balances'}</span></div>
+  </div>
+  <div class="fg" style="margin:0 0 14px">
+    <button class="sbtn" onclick="addPersonPrompt()">➕ Add Person</button>
+  </div>
+  <div class="fi2">
+    <div class="sh"><div class="st">Balances</div></div>
+    ${D.data.people.length?D.data.people.map(p=>{
+      const bal=friendBalance(p.id);
+      return `<div class="split-member" style="cursor:pointer" onclick="viewPerson('${p.id}')">
+        <div class="split-name">👤 ${p.name}</div>
+        <div class="split-amt" style="color:${bal>0?'var(--g)':bal<0?'var(--r)':'var(--t3)'}">${bal===0?'Settled':(bal>0?'Owes you ':'You owe ')+fmt(bal)}</div>
+      </div>`;
+    }).join(''):'<div class="empty"><div class="eic">🧑‍🤝‍🧑</div><div class="em">No friends added yet.<br>Add a person, then tag them when you pay for their expenses.</div></div>'}
+  </div>
+  <div class="fi2">
+    <div class="sh"><div class="st">Recent Activity</div></div>
+    <div class="txl">
+      ${recentTxns.length?recentTxns.map(t=>{
+        const p=personById(t.personId);
+        return `<div class="txi">
+          <div class="tico ${t.type==='lent'?'db':'cr'}">${t.type==='lent'?'💸':'✅'}</div>
+          <div style="flex:1;min-width:0"><div class="txn">${p?p.name:'Unknown'} ${t.type==='lent'?'— you paid':'— paid you back'}</div><div class="txs">${t.note||''} · ${t.date}</div></div>
+          <div class="txa ${t.type==='lent'?'db':'cb'}">${t.type==='lent'?'-':'+'}${fmt(t.amount)}</div>
+        </div>`;
+      }).join(''):'<div class="empty"><div class="eic">🧾</div><div class="em">No activity yet.</div></div>'}
+    </div>
+  </div>`;
+}
+function addPersonPrompt() {
+  const name=(prompt('Friend / person name:')||'').trim();
+  if(!name) return;
+  D.data.people.push({id:uid(),name,color:'#6c63ff'});
+  save(); renderFriends();
+  toast(`✅ ${name} added`,'ok');
+}
+function viewPerson(id) {
+  const p=personById(id); if(!p) return;
+  const bal=friendBalance(id);
+  const txns=D.data.friendTxns.filter(t=>t.personId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  openMod('👤 '+p.name,`
+    <div style="background:var(--card2);border-radius:var(--rr);padding:14px;margin-bottom:14px;text-align:center">
+      <div style="font-size:.66rem;color:var(--t3)">Balance</div>
+      <div style="font-family:var(--fm);font-size:1.3rem;color:${bal>0?'var(--g)':bal<0?'var(--r)':'var(--t)'}">${bal===0?'Settled up':(bal>0?'Owes you ':'You owe ')+fmt(Math.abs(bal))}</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="sbtn sm" style="flex:1" onclick="recordFriendReturn('${id}')">💰 Log Return</button>
+      <button class="sbtn danger sm" style="flex:1" onclick="deletePerson('${id}')">🗑 Remove</button>
+    </div>
+    <div style="font-size:.78rem;font-weight:500;margin-bottom:8px">History</div>
+    <div class="txl">${txns.length?txns.map(t=>`<div class="txi">
+      <div class="tico ${t.type==='lent'?'db':'cr'}">${t.type==='lent'?'💸':'✅'}</div>
+      <div style="flex:1"><div class="txn">${t.note||(t.type==='lent'?'Spent for them':'Paid back')}</div><div class="txs">${t.date}</div></div>
+      <div class="txa ${t.type==='lent'?'db':'cb'}">${t.type==='lent'?'-':'+'}${fmt(t.amount)}</div>
+    </div>`).join(''):'<div class="empty" style="padding:14px"><div class="em">No activity yet.</div></div>'}</div>`);
+}
+function recordFriendReturn(personId) {
+  const amt=parseFloat(prompt('Amount returned (₹):')||'');
+  if(!amt||amt<=0) return;
+  D.data.friendTxns.push({id:uid(),personId,type:'returned',amount:amt,date:td(),note:'Repayment',method:'cash'});
+  save(); closeAll(); renderAll(); navTo('Friends');
+  toast(`✅ ${fmt(amt)} logged as returned`,'ok');
+}
+function deletePerson(id) {
+  if(!confirm('Remove this person? Their linked spends stay as personal expenses again, and their return history is cleared.')) return;
+  D.data.expenses.forEach(e=>{ if(e.personId===id) e.personId=null; });
+  D.data.ccSpends.forEach(s=>{ if(s.personId===id) s.personId=null; });
+  D.data.friendTxns=D.data.friendTxns.filter(t=>t.personId!==id);
+  D.data.people=D.data.people.filter(p=>p.id!==id);
+  save(); closeAll(); renderAll(); navTo('Friends');
+  toast('Person removed','ok');
+}
+// ══════════════════════════════════════════════════════════
 //  HOME PAGE
 // ══════════════════════════════════════════════════════════
 function renderHome() {
@@ -1440,6 +1566,7 @@ function renderHome() {
   const now     = new Date();
   const exps    = monthExpenses(y, m);
   const income  = monthIncome(y, m);
+  const otherInc= monthOtherIncome(y, m);
   const spent   = exps.reduce((s,e)=>s+e.amount,0);
   const emiAmt  = D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0);
   const pendEMI = totalEMIForMonth(y, m);
@@ -1491,7 +1618,7 @@ function renderHome() {
       <span style="margin-left:auto;opacity:.7">${savePct.toFixed(0)}% saved</span>
     </div>
     <div class="hs">
-      <div class="hsi" onclick="openAdd('income')"><div class="hsil">Income</div><div class="hsiv" style="color:var(--g)">${fmt(income)}</div></div>
+      <div class="hsi" onclick="openAdd('income')"><div class="hsil">Salary${otherInc>0?' <span style=\"opacity:.6\">+other</span>':''}</div><div class="hsiv" style="color:var(--g)">${fmt(income)}</div>${otherInc>0?`<div style="font-size:.56rem;color:var(--t3)">+${fmt(otherInc)} other</div>`:''}</div>
       <div class="hsi" onclick="openAdd('expense')"><div class="hsil">Spent</div><div class="hsiv" style="color:var(--r)">${fmt(spent)}</div></div>
       <div class="hsi" onclick="openPage('EMI')"><div class="hsil">EMIs</div><div class="hsiv" style="color:var(--am)">${fmt(emiAmt)}</div></div>
       <div class="hsi" onclick="openPage('CC')"><div class="hsil">CC Due</div><div class="hsiv" style="color:${ccOut>0?'var(--r)':'var(--t)'}">${fmt(ccOut)}</div></div>
@@ -1512,6 +1639,7 @@ function renderHome() {
     <div class="qb" onclick="navTo('CashFlow')"><div class="qi">💹</div><div class="ql">Cash Flow</div></div>
     <div class="qb" onclick="navTo('Calendar')"><div class="qi">📅</div><div class="ql">Calendar</div></div>
     <div class="qb" onclick="openAdd('budget')"><div class="qi">🎯</div><div class="ql">Budgets</div></div>
+    <div class="qb" onclick="navTo('Friends')"><div class="qi">🧑‍🤝‍🧑</div><div class="ql">Friends</div></div>
   </div>
   <!-- REAL-TIME SPEND TICKER (only current month) -->
   ${isCurM&&(todaySpend>0||weekSpend>0)?`
@@ -1980,9 +2108,9 @@ function renderCC() {
       ${(()=>{
         const mKey=mk(D.sel.y,D.sel.m);
         const spends=D.data.ccSpends.filter(s=>s.date.startsWith(mKey)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
-        return spends.length?spends.map(s=>{const card=ccById(s.cardId);return`<div class="txi">
+        return spends.length?spends.map(s=>{const card=ccById(s.cardId);const p=s.personId?personById(s.personId):null;return`<div class="txi">
           <div class="tico cc">${CAT_ICONS[s.category]||'💳'}</div>
-          <div style="flex:1;min-width:0"><div class="txn">${s.desc}</div><div class="txs">${card?card.name:''} · ${s.category} · ${s.date}</div></div>
+          <div style="flex:1;min-width:0"><div class="txn">${s.desc}${p?` <span style="color:var(--ac)">· 👤 ${p.name}</span>`:''}</div><div class="txs">${card?card.name:''} · ${s.category} · ${s.date}</div></div>
           <div class="txa db">-${fmt(s.amount)}</div>
         </div>`;}).join(''):'<div class="empty"><div class="eic">💳</div><div class="em">No CC spends this month.</div></div>';
       })()}
@@ -2009,9 +2137,13 @@ function viewCCCard(id) {
   const card=ccById(id); if(!card) return;
   const util=card.limit>0?Math.min(100,(card.outstanding||0)/card.limit*100):0;
   const utilColor=util>80?'var(--r)':util>50?'var(--am)':'var(--g)';
-  const spends=D.data.ccSpends.filter(s=>s.cardId===id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+  const allSpends=D.data.ccSpends.filter(s=>s.cardId===id);
+  const spends=[...allSpends].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
   const pays=D.data.ccPayments.filter(p=>p.cardId===id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   const avail=Math.max(0,(card.limit||0)-(card.outstanding||0));
+  const byPerson={};
+  allSpends.forEach(s=>{ const key=s.personId||'__me__'; byPerson[key]=(byPerson[key]||0)+s.amount; });
+  const personRows=Object.keys(byPerson).map(k=>({label:k==='__me__'?'👤 Me':'👤 '+(personById(k)?.name||'Unknown'),amt:byPerson[k]})).sort((a,b)=>b.amt-a.amt);
   openMod('💳 '+card.name,`
     <div style="background:linear-gradient(135deg,${card.color||'#6c63ff'}30,${card.color||'#6c63ff'}10);border-radius:13px;padding:15px;margin-bottom:14px">
       <div style="font-size:.62rem;color:rgba(255,255,255,.5)">${card.bank||''}</div>
@@ -2037,12 +2169,14 @@ function viewCCCard(id) {
       </div>
       <div class="fhint">Use if bank statement differs from app calculation. Both values are stored.</div>
     </div>
+    ${personRows.length>1?`<div style="font-size:.78rem;font-weight:500;margin-bottom:8px">Spends by Person</div>
+    <div style="margin-bottom:14px">${personRows.map(r=>`<div class="split-member"><div class="split-name">${r.label}</div><div class="split-amt">${fmt(r.amt)}</div></div>`).join('')}</div>`:''}
     <div style="font-size:.78rem;font-weight:500;margin-bottom:8px">Recent Spends</div>
-    <div class="txl">${spends.length?spends.map(s=>`<div class="txi">
+    <div class="txl">${spends.length?spends.map(s=>{const p=s.personId?personById(s.personId):null;return`<div class="txi">
       <div class="tico cc">${CAT_ICONS[s.category]||'💳'}</div>
-      <div style="flex:1"><div class="txn">${s.desc}</div><div class="txs">${s.category} · ${s.date}</div></div>
+      <div style="flex:1"><div class="txn">${s.desc}${p?` <span style="color:var(--ac)">· 👤 ${p.name}</span>`:''}</div><div class="txs">${s.category} · ${s.date}</div></div>
       <div class="txa db">-${fmt(s.amount)}</div>
-    </div>`).join(''):'<div class="empty" style="padding:14px"><div class="em">No spends recorded.</div></div>'}</div>
+    </div>`;}).join(''):'<div class="empty" style="padding:14px"><div class="em">No spends recorded.</div></div>'}</div>
     <div style="font-size:.78rem;font-weight:500;margin:12px 0 8px">Payment History</div>
     <div class="txl">${pays.length?pays.map(p=>{const acc=accById(p.accountId);return`<div class="txi">
       <div class="tico cr">✅</div>
@@ -2574,6 +2708,14 @@ function openAdd(type, editId) {
         <select class="fs" id="fCC"><option value="">— select card —</option>${ccOpts||'<option>Add a CC card first</option>'}</select>
         <div class="fhint">Added to card outstanding balance.</div>
       </div>
+      <div class="fg"><label class="fl">Spent for (optional)</label>
+        <select class="fs" id="fPerson" onchange="onPersonSelectChange()">
+          <option value="">— Personal spend —</option>
+          ${D.data.people.map(p=>`<option value="${p.id}" ${ex&&ex.personId===p.id?'selected':''}>👤 ${p.name}</option>`).join('')}
+          <option value="__new__">➕ Add new person</option>
+        </select>
+        <div class="fhint">Tag this if you paid for a friend/family member — it won't count in your personal spending totals, and is tracked in Friends so you can log when they pay you back.</div>
+      </div>
       <div class="fg"><label class="fl">Note (optional)</label>
         <input class="fi" id="fNote" value="${ex?ex.note||'':''}" placeholder="Any additional notes"/></div>
       <div class="fg"><label class="fl">Recurring</label>
@@ -2601,20 +2743,21 @@ function openAdd(type, editId) {
     for(let i=-2;i<=3;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const oy=d.getFullYear(),om=d.getMonth();const ok=mk(oy,om);const isCur=i===0,isFut=i>0,isSel=oy===D.sel.y&&om===D.sel.m;opts.push(`<option value="${ok}" ${isSel?'selected':''}>${MN[om]} ${oy}${isCur?' (current)':''}${isFut?' ⏭ next':''}</option>`);}
     const defMk=mk(D.sel.y,D.sel.m);const existing=D.data.budgetIncome[defMk]||0;
     openMod('💼 Add Income',`
-      <div class="notice bl" style="margin-bottom:12px"><span>💡</span><div><strong>Salary credited early?</strong> Choose next month — budget counts there, but account updates today.</div></div>
+      <div class="notice bl" style="margin-bottom:12px"><span>💡</span><div><strong>Salary is your main income.</strong> It drives savings %, budgets & insights. Other types (bonus, freelance...) are tracked but shown separately.</div></div>
       <div class="fg"><label class="fl">Budget Month</label>
         <select class="fs" id="fIncMonth" onchange="onIncMonthChange()">${opts.join('')}</select>
         <div class="fhint" id="fIncHint"></div>
       </div>
       <div style="background:var(--card2);border-radius:var(--rr);padding:9px 11px;margin-bottom:12px;font-size:.76rem;color:var(--t2)" id="fIncExisting">Current: <strong>${fmt(existing)}</strong></div>
-      <div class="fg"><label class="fl">Amount (₹)</label>
-        <input class="fi" type="number" id="fIncAmt" value="${existing||''}" placeholder="e.g. 75000" inputmode="decimal"/></div>
       <div class="fg"><label class="fl">Type</label>
-        <select class="fs" id="fIncType">
-          <option value="Salary">💼 Salary</option><option value="Freelance">💻 Freelance</option>
+        <select class="fs" id="fIncType" onchange="onIncTypeChange()">
+          <option value="Salary">💼 Salary (main income)</option><option value="Freelance">💻 Freelance</option>
           <option value="Bonus">🎁 Bonus</option><option value="Rental">🏠 Rental</option>
           <option value="Interest">🏦 Interest/Dividend</option><option value="Other">📦 Other</option>
         </select></div>
+      <div class="fg"><label class="fl">Amount (₹)</label>
+        <input class="fi" type="number" id="fIncAmt" placeholder="e.g. 75000" inputmode="decimal"/>
+        <div class="fhint">Each type is stored separately — adding Bonus won't overwrite Salary.</div></div>
       <div class="fg"><label class="fl">Credit to Account</label>
         <select class="fs" id="fIncAcc"><option value="">Don't update account</option>${accOpts}</select></div>
       <div class="fg"><label class="fl">Set as default monthly income?</label>
@@ -2903,19 +3046,41 @@ function onPayMethodChange() {
   if(ar) ar.style.display=v==='account'?'block':'none';
   if(cr) cr.style.display=v==='cc'?'block':'none';
 }
+function onPersonSelectChange() {
+  const sel=document.getElementById('fPerson'); if(!sel) return;
+  if(sel.value==='__new__') {
+    const name=(prompt('Friend / person name:')||'').trim();
+    if(!name) { sel.value=''; return; }
+    const p={id:uid(),name,color:'#6c63ff'};
+    D.data.people.push(p); save();
+    const opt=document.createElement('option');
+    opt.value=p.id; opt.textContent='👤 '+p.name;
+    sel.insertBefore(opt, sel.lastElementChild);
+    sel.value=p.id;
+  }
+}
 function onIncMonthChange() {
   const sel=document.getElementById('fIncMonth'); if(!sel) return;
   const mKey=sel.value;
   const {y,m}=mkp(mKey);
   const now=new Date();
   const isFut=new Date(y,m,1)>new Date(now.getFullYear(),now.getMonth(),1);
-  const existing=D.data.budgetIncome[mKey]||0;
+  const byType=D.data.incomeByType[mKey]||{};
   const hint=document.getElementById('fIncHint');
   const info=document.getElementById('fIncExisting');
   if(hint) hint.innerHTML=isFut?`<span style="color:var(--am)">⏭ Budget for ${MN[m]} ${y}. Account updates today.</span>`:'';
-  if(info) info.innerHTML=`Current: <strong>${fmt(existing)}</strong>`;
+  if(info){
+    const parts=Object.keys(byType).filter(k=>byType[k]>0).map(k=>`${k==='Salary'?'💼 ':''}${k}: <strong>${fmt(byType[k])}</strong>`);
+    info.innerHTML=parts.length?parts.join(' &nbsp;·&nbsp; ')+(byType.Salary?' <span style="color:var(--g)">(Salary = main income)</span>':''):'No income recorded yet for this month.';
+  }
+  onIncTypeChange();
+}
+function onIncTypeChange() {
+  const monthSel=document.getElementById('fIncMonth'); const typeSel=document.getElementById('fIncType');
   const amtEl=document.getElementById('fIncAmt');
-  if(amtEl&&existing>0&&!amtEl.value) amtEl.value=existing;
+  if(!monthSel||!typeSel||!amtEl) return;
+  const byType=D.data.incomeByType[monthSel.value]||{};
+  amtEl.value=byType[typeSel.value]||'';
 }
 function onCCPayCardChange() {
   const cardId=document.getElementById('fCPCard')?.value;
@@ -2967,6 +3132,8 @@ function saveExpense(editId) {
   const ccId=method==='cc'?(document.getElementById('fCC')?.value||''):'';
   const note=document.getElementById('fNote')?.value||'';
   const recurring=document.getElementById('fRecurring')?.value||'';
+  const personId=(document.getElementById('fPerson')?.value||'').trim();
+  const personIdSafe=(personId&&personId!=='__new__')?personId:'';
   if(!amt||amt<=0) return toast('Enter a valid amount','err');
   if(!date) return toast('Pick a date','err');
   if(method==='cc'&&!ccId) return toast('Select a credit card','err');
@@ -2976,14 +3143,17 @@ function saveExpense(editId) {
     // Reverse old account/CC effects
     if(ex.payMethod==='account'&&ex.accountId){const old=accById(ex.accountId);if(old)old.balance+=ex.amount;}
     if(ex.payMethod==='cc'&&ex.ccId){const oc=ccById(ex.ccId);if(oc)oc.outstanding=Math.max(0,(oc.outstanding||0)-ex.amount);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==editId);}
-    Object.assign(ex,{category:cat,desc:desc||cat,amount:amt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring});
+    D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==editId);
+    Object.assign(ex,{category:cat,desc:desc||cat,amount:amt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,personId:personIdSafe||null});
+    if(personIdSafe) D.data.friendTxns.push({id:uid(),personId:personIdSafe,type:'lent',amount:amt,date,note:desc||cat,method,expenseId:editId});
   } else {
     const expId=uid();
-    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:amt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring});
+    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:amt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,personId:personIdSafe||null});
     if(method==='cc'&&ccId) {
       const card=ccById(ccId);
-      if(card){card.outstanding=(card.outstanding||0)+amt;D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:expId,date,desc:desc||cat,amount:amt,category:cat});}
+      if(card){card.outstanding=(card.outstanding||0)+amt;D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:expId,date,desc:desc||cat,amount:amt,category:cat,personId:personIdSafe||null});}
     }
+    if(personIdSafe) D.data.friendTxns.push({id:uid(),personId:personIdSafe,type:'lent',amount:amt,date,note:desc||cat,method,expenseId:expId});
   }
   // Apply new effects
   if(method==='account'&&accId) debit(accId,amt,desc||cat,date);
@@ -2992,12 +3162,12 @@ function saveExpense(editId) {
     const card=ccById(ccId);
     if(card){
       card.outstanding=(card.outstanding||0)+amt;
-      D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:editId,date,desc:desc||cat,amount:amt,category:cat});
+      D.data.ccSpends.push({id:uid(),cardId:ccId,expenseId:editId,date,desc:desc||cat,amount:amt,category:cat,personId:personIdSafe||null});
     }
   }
   save(); renderAll(); closeAll();
-  const card=ccById(ccId);const acc=accById(accId);
-  toast(`✅ ${fmt(amt)} ${editId?'updated':'added'}${card?' on '+card.name:acc?' from '+acc.name:''}`, 'ok');
+  const card=ccById(ccId);const acc=accById(accId);const person=personById(personIdSafe);
+  toast(`✅ ${fmt(amt)} ${editId?'updated':'added'}${person?' for '+person.name:card?' on '+card.name:acc?' from '+acc.name:''}`, 'ok');
 }
 
 function duplicateExpense(id) {
@@ -3010,9 +3180,10 @@ function duplicateExpense(id) {
     const card=ccById(copy.ccId);
     if (card) {
       card.outstanding=(card.outstanding||0)+copy.amount;
-      D.data.ccSpends.push({id:uid(),cardId:copy.ccId,expenseId:newId,date:copy.date,desc:'(Dup) '+copy.desc,amount:copy.amount,category:copy.category});
+      D.data.ccSpends.push({id:uid(),cardId:copy.ccId,expenseId:newId,date:copy.date,desc:'(Dup) '+copy.desc,amount:copy.amount,category:copy.category,personId:copy.personId||null});
     }
   }
+  if (copy.personId) D.data.friendTxns.push({id:uid(),personId:copy.personId,type:'lent',amount:copy.amount,date:copy.date,note:'(Dup) '+copy.desc,method:copy.payMethod,expenseId:newId});
   save(); renderAll(); closeAll();
   toast('✅ Expense duplicated for today','ok');
 }
@@ -3022,6 +3193,7 @@ function deleteExpense(id) {
   const ex=expById(id); if(!ex) return;
   if(ex.payMethod==='account'&&ex.accountId){const acc=accById(ex.accountId);if(acc)acc.balance+=ex.amount;}
   if(ex.payMethod==='cc'&&ex.ccId){const card=ccById(ex.ccId);if(card)card.outstanding=Math.max(0,(card.outstanding||0)-ex.amount);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==id);}
+  D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==id);
   D.data.expenses=D.data.expenses.filter(e=>e.id!==id);
   save(); renderAll(); closeAll(); toast('Expense deleted','ok');
 }
@@ -3036,8 +3208,10 @@ function saveIncome() {
   const {y:iy,m:im}=mkp(mKey);
   const now=new Date();
   const isFut=new Date(iy,im,1)>new Date(now.getFullYear(),now.getMonth(),1);
-  D.data.budgetIncome[mKey]=amt;
-  if(setDef) D.data.defaultIncome=amt;
+  if(!D.data.incomeByType[mKey]) D.data.incomeByType[mKey]={};
+  D.data.incomeByType[mKey][type]=amt;
+  D.data.budgetIncome[mKey]=Object.values(D.data.incomeByType[mKey]).reduce((s,v)=>s+(v||0),0);
+  if(setDef&&type==='Salary') D.data.defaultIncome=amt;
   if(accId) credit(accId,amt,type+(isFut?' (for '+MN[im]+' '+iy+')':''),td());
   save(); renderAll(); closeAll();
   toast(`✅ ${fmt(amt)} ${type} set for ${MN[im]} ${iy}`, 'ok');
@@ -3391,6 +3565,7 @@ function openSettings() {
         {key:'budgets',    label:'Budget Settings',           icon:'🎯'},
         {key:'goals',      label:'Savings Goals',             icon:'🏁'},
         {key:'accounts',   label:'Bank Accounts',             icon:'🏦'},
+        {key:'people',     label:'Friends & Splits',          icon:'🧑‍🤝‍🧑'},
       ].map(s=>`<button class="sbtn danger sm" onclick="clearSection('${s.key}','${s.label}')">🗑 Clear ${s.icon} ${s.label}</button>`).join('')}
     </div>
     <div style="height:16px"></div>
@@ -3419,6 +3594,8 @@ function clearSection(key, label) {
     D.data.expenses=[];
     // Also remove CC spend links
     D.data.ccSpends=[];
+  } else if(key==='people') {
+    D.data.people=[]; D.data.friendTxns=[];
   } else {
     D.data[key]=[];
   }
