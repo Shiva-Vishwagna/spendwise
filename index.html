@@ -557,6 +557,7 @@ const D = {
     budgetIncome: {},
     incomeByType: {},
     // {YYYY-MM:{Salary:n,Freelance:n,Bonus:n,...}}
+    lastBackupAt: null,
     settings: { pin:'1234', activationMonth: null, theme:'dark' }
   }
 };
@@ -630,12 +631,36 @@ function load() {
   D.pin = localStorage.getItem('sw4pin') || D.data.settings?.pin || '1234';
 }
 function exportJSON() {
+  D.data.lastBackupAt = new Date().toISOString();
+  save();
   const blob = new Blob([JSON.stringify(D.data,null,2)],{type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'spendwise-backup-'+td()+'.json';
   a.click();
+  renderAll();
   toast('✅ Backup downloaded','ok');
+}
+function daysSinceBackup() {
+  if(!D.data.lastBackupAt) return null;
+  const diff = Date.now() - new Date(D.data.lastBackupAt).getTime();
+  return Math.floor(diff/86400000);
+}
+function exportCSV() {
+  const rows=[['Date','Category','Description','Amount','Payment Method','Card/Account','Person','Note']];
+  D.data.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    const card=e.ccId?ccById(e.ccId):null; const acc=e.accountId?accById(e.accountId):null;
+    const person=e.personId?personById(e.personId):null;
+    rows.push([e.date,e.category,(e.desc||'').replace(/"/g,"'"),e.amount,e.payMethod,
+      card?card.name:(acc?acc.name:'Cash'),person?person.name:'',(e.note||'').replace(/"/g,"'")]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='spendwise-expenses-'+td()+'.csv';
+  a.click();
+  toast('✅ CSV exported','ok');
 }
 function importJSON() {
   const inp = document.createElement('input');
@@ -886,6 +911,19 @@ function pd() {
 // ══════════════════════════════════════════════════════════
 //  REAL-TIME SPEND HELPERS
 // ══════════════════════════════════════════════════════════
+function noSpendStreakDays() {
+  const daily = {};
+  D.data.expenses.forEach(e=>{ if(!e.personId){ daily[e.date]=(daily[e.date]||0)+e.amount; } });
+  let streak=0;
+  for(let i=0;i<90;i++){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const key=d.toISOString().split('T')[0];
+    if((daily[key]||0)>0) break;
+    if(i===0 && !(key in daily)) { streak++; continue; } // today with no entries yet still counts
+    streak++;
+  }
+  return streak;
+}
 function getTodaySpend() {
   const today = td();
   return D.data.expenses.filter(e=>e.date===today&&!e.personId).reduce((s,e)=>s+e.amount,0);
@@ -1586,6 +1624,8 @@ function renderHome() {
   // Real-time spend
   const todaySpend = isCurM ? getTodaySpend() : 0;
   const weekSpend  = isCurM ? getWeekSpend()  : 0;
+  const streak     = isCurM ? noSpendStreakDays() : 0;
+  const backupDays = daysSinceBackup();
   // 6-month chart
   const chart6=[]; for(let i=5;i>=0;i--){const d=new Date(y,m-i,1);const cy=d.getFullYear(),cm=d.getMonth();chart6.push({y:cy,m:cm,v:monthExpenses(cy,cm).reduce((s,e)=>s+e.amount,0)});}
   const maxV=Math.max(...chart6.map(c=>c.v),1);
@@ -1629,6 +1669,8 @@ function renderHome() {
   ${ccDueAlert?`<div class="notice r fi2"><span style="font-size:1.1rem">🔴</span><div><strong>Credit card payment due soon!</strong> Check Cards tab to pay and avoid interest charges.</div></div>`:''}
   ${nextInc?`<div class="notice bl fi2" style="cursor:pointer" onclick="selMonth(${nextD.getFullYear()},${nextD.getMonth()})"><span>⏭</span><div><strong>Next month income pre-set: ${fmt(nextInc)}</strong> for ${MN[nextD.getMonth()]} ${nextD.getFullYear()} — tap to view</div></div>`:''}
 
+  ${(backupDays===null||backupDays>=14)?`<div class="notice am fi2" style="cursor:pointer" onclick="exportJSON()"><span>💾</span><div><strong>${backupDays===null?"You've never backed up your data.":`Last backup was ${backupDays} days ago.`}</strong> Tap to download a fresh JSON backup — your data only lives on this device.</div></div>`:''}
+
   <!-- QUICK ACTIONS -->
   <div class="qg fi2">
     <div class="qb" onclick="openAdd('expense')"><div class="qi">💸</div><div class="ql">Expense</div></div>
@@ -1642,7 +1684,7 @@ function renderHome() {
     <div class="qb" onclick="navTo('Friends')"><div class="qi">🧑‍🤝‍🧑</div><div class="ql">Friends</div></div>
   </div>
   <!-- REAL-TIME SPEND TICKER (only current month) -->
-  ${isCurM&&(todaySpend>0||weekSpend>0)?`
+  ${isCurM&&(todaySpend>0||weekSpend>0||streak>=2)?`
   <div class="rt-bar fi2">
     <div class="rt-pulse"></div>
     <div style="flex:1">
@@ -1653,6 +1695,7 @@ function renderHome() {
         <div><div class="rt-lbl">Daily Avg</div><div class="rt-val">${fmt(dailyAvg)}</div></div>
       </div>
       ${income>0&&proj>income?`<div style="margin-top:6px;font-size:.68rem;background:var(--r)08;color:var(--r);border-radius:6px;padding:5px 8px">⚠ Projected overspend: ${fmt(proj-income)}</div>`:""}
+      ${streak>=2?`<div style="margin-top:6px;font-size:.68rem;background:var(--g)08;color:var(--g);border-radius:6px;padding:5px 8px">🔥 ${streak}-day no-spend streak</div>`:""}
     </div>
   </div>`:""}
 
@@ -3542,9 +3585,13 @@ function openSettings() {
 
     <!-- BACKUP & RESTORE -->
     <div style="font-family:var(--fd);font-size:.85rem;font-weight:700;margin-bottom:10px">📦 Backup & Restore</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
+    <div style="font-size:.7rem;color:var(--t3);margin-bottom:8px">${(()=>{const d=daysSinceBackup();return d===null?'⚠ Never backed up':(d===0?'✅ Backed up today':`Last backup: ${d} day${d===1?'':'s'} ago`);})()}</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
       <button class="sbtn sm" style="flex:1" onclick="exportJSON()">⬇️ Download Backup</button>
       <button class="sbtn sec sm" style="flex:1" onclick="importJSON()">⬆️ Restore Backup</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="sbtn sec sm" style="flex:1" onclick="exportCSV()">📄 Export Expenses (CSV)</button>
     </div>
     <div style="font-family:var(--fd);font-size:.85rem;font-weight:700;margin-bottom:10px">📲 Smart Import</div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
