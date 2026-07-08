@@ -613,6 +613,7 @@ const CAT_ICONS = {food:'🍔',groceries:'🛒',transport:'🚗',fuel:'⛽',shop
   recharge:'📱',gym:'💪',insurance:'🛡️',rent:'🏠',education:'📚',family:'👨‍👩‍👧',
   subscription:'📺',medical:'💉',emi:'🔁',savings:'💰',salary:'💼',other:'📦'};
 const EMI_ICONS = {home:'🏠',car:'🚗',personal:'💳',education:'📚',device:'📱',other:'📦'};
+const INC_ICONS = {Salary:'💼',Freelance:'💻',Bonus:'🎁',Rental:'🏠',Interest:'🏦',Other:'📦'};
 const INV_LABELS = {fd:'Fixed Deposit',rd:'Recurring Deposit',mf:'Mutual Fund',
   gold:'Gold',ppf:'PPF/NPS',stocks:'Stocks',crypto:'Crypto',insurance:'Insurance/ULIP',other:'Other'};
 const PAY_METHODS = {cash:'💵 Cash',account:'🏦 Bank/UPI',cc:'💳 Credit Card',debit:'💳 Debit Card'};
@@ -863,6 +864,17 @@ function chitContributedMonths(chitId) {
 }
 function pendingChitsForMonth(y, m) {
   return D.data.chits.filter(c => c.status==='active' && getChitMonthStatus(c.id,y,m).status!=='paid');
+}
+function daysUntilDate(d) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(d); target.setHours(0,0,0,0);
+  return Math.round((target-today)/86400000);
+}
+function dueLabel(days) {
+  if (days<0) return {text:`Overdue ${Math.abs(days)}d`, color:'var(--r)'};
+  if (days===0) return {text:'Due today', color:'var(--r)'};
+  if (days<=3) return {text:`Due in ${days}d`, color:'var(--am)'};
+  return {text:`Due in ${days}d`, color:'var(--t3)'};
 }
 function activeEMIs() {
   return D.data.emis.filter(e => e.remaining > 0);
@@ -1736,6 +1748,8 @@ function renderHome() {
   const exps    = monthExpenses(y, m);
   const income  = monthIncome(y, m);
   const otherInc= monthOtherIncome(y, m);
+  const totalInc= monthTotalIncome(y, m);
+  const incByType = monthIncomeByType(y, m);
   const spent   = exps.reduce((s,e)=>s+e.amount,0);
   const emiAmt  = D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0);
   const pendEMI = totalEMIForMonth(y, m);
@@ -1790,7 +1804,7 @@ function renderHome() {
       <span style="margin-left:auto;opacity:.7">${savePct.toFixed(0)}% saved</span>
     </div>
     <div class="hs">
-      <div class="hsi" onclick="openAdd('income')"><div class="hsil">Salary${otherInc>0?' <span style=\"opacity:.6\">+other</span>':''}</div><div class="hsiv" style="color:var(--g)">${fmt(income)}</div>${otherInc>0?`<div style="font-size:.56rem;color:var(--t3)">+${fmt(otherInc)} other</div>`:''}</div>
+      <div class="hsi" onclick="openAdd('income')"><div class="hsil">Income</div><div class="hsiv" style="color:var(--g)">${fmt(totalInc)}</div>${Object.keys(incByType).length?`<div style="font-size:.56rem;color:var(--t3)">${Object.keys(incByType).map(t=>`${INC_ICONS[t]||'💰'} ${fmt(incByType[t])}`).join(' + ')}</div>`:''}</div>
       <div class="hsi" onclick="openAdd('expense')"><div class="hsil">Spent</div><div class="hsiv" style="color:var(--r)">${fmt(spent)}</div></div>
       <div class="hsi" onclick="openPage('EMI')"><div class="hsil">EMIs</div><div class="hsiv" style="color:var(--am)">${fmt(emiAmt)}</div></div>
       <div class="hsi" onclick="openPage('CC')"><div class="hsil">CC Due</div><div class="hsiv" style="color:${ccOut>0?'var(--r)':'var(--t)'}">${fmt(ccOut)}</div></div>
@@ -1842,7 +1856,7 @@ function renderHome() {
         if(!incList.length) return '<div class="empty"><div class="eic">💼</div><div class="em">No income logged for this month yet.<br>Tap + Add to log your salary.</div></div>';
         return incList.map(inc=>{const acc=inc.accountId?accById(inc.accountId):null;
           return`<div class="txi" onclick="editIncome('${inc.id}')">
-            <div class="tico cr">${inc.type==='Salary'?'💼':'💰'}</div>
+            <div class="tico cr">${INC_ICONS[inc.type]||'💰'}</div>
             <div style="flex:1;min-width:0"><div class="txn">${inc.type}${inc.type==='Salary'?' <span class="bdg g" style="font-size:.52rem;padding:1px 5px">MAIN</span>':''}</div>
             <div class="txs">${acc?acc.name+' · ':''}${inc.date}${inc.note?' · '+inc.note:''}</div></div>
             <div class="txa cb">+${fmt(inc.amount)}</div>
@@ -1979,6 +1993,20 @@ function renderEMI() {
   const closing = active.filter(e=>e.remaining<=3);
   let showPaid = D._emiShowPaid || false;
 
+  // Combined upcoming payments (EMIs + chit contributions) sorted by due date — clearer than a flat "pending" count
+  const upcoming = [];
+  if (isCurM) {
+    pendingList.forEach(e=>{
+      upcoming.push({kind:'emi', id:e.id, name:e.name, icon:EMI_ICONS[e.type]||'📦', amount:e.monthly, dueDate:new Date(y,m,e.dueDay)});
+    });
+    pendingChitsForMonth(y,m).forEach(c=>{
+      let dd = c.nextDue ? new Date(c.nextDue) : null;
+      if (!dd || dd.getFullYear()!==y || dd.getMonth()!==m) dd = new Date(y,m,(new Date(c.startDate).getDate())||1);
+      upcoming.push({kind:'chit', id:c.id, name:c.name, icon:'🏺', amount:c.monthly, dueDate:dd});
+    });
+    upcoming.sort((a,b)=>a.dueDate-b.dueDate);
+  }
+
   // 12-month forecast
   const forecast=[];
   for(let i=0;i<12;i++){
@@ -2006,9 +2034,31 @@ function renderEMI() {
       <span style="color:var(--ac);cursor:pointer;font-size:.7rem;margin-left:6px" onclick="openAdd('investment')">→ Start SIP</span>
     </div>`;}).join('')}</div></div>`:''}
 
+  <!-- DUE SOON — clearer than a flat pending count -->
+  ${isCurM&&upcoming.length?`<div class="fi2">
+    <div class="sh"><div class="st">📌 Due Soon</div><span class="bdg am">${upcoming.length} payment${upcoming.length!==1?'s':''}</span></div>
+    <div class="eil">
+      ${upcoming.slice(0,8).map(u=>{
+        const days=daysUntilDate(u.dueDate); const lbl=dueLabel(days);
+        return `<div class="ei" style="cursor:pointer" onclick="${u.kind==='emi'?`viewEMIHistory('${u.id}')`:`viewChitHistory('${u.id}')`}">
+          <div class="eii">${u.icon}</div>
+          <div class="ein">
+            <div class="enn">${u.name}</div>
+            <div class="enm">${u.kind==='emi'?'EMI':'Chit contribution'} · ${u.dueDate.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
+            <span class="emi-status-badge" style="color:${lbl.color};background:${lbl.color}18">${lbl.text.toUpperCase()}</span>
+          </div>
+          <div class="eir">
+            <div class="eia">${fmt(u.amount)}</div>
+            <div class="paybtn" onclick="event.stopPropagation();${u.kind==='emi'?`quickPayEMI('${u.id}')`:`quickPayChit('${u.id}')`}">Pay Now</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:isCurM?`<div class="notice g fi2"><span>🎉</span><div><strong>Nothing due right now.</strong> All EMIs and chit contributions are paid up for ${MS[m]}.</div></div>`:''}
+
   <!-- TOGGLE -->
   ${isCurM?`<div style="display:flex;gap:8px">
-    <button class="sbtn sm ${!showPaid?'':'sec'}" style="flex:1" onclick="D._emiShowPaid=false;renderEMI()">⏳ Pending (${pendingList.length})</button>
+    <button class="sbtn sm ${!showPaid?'':'sec'}" style="flex:1" onclick="D._emiShowPaid=false;renderEMI()">📋 All EMIs (${pendingList.length})</button>
     <button class="sbtn sm ${showPaid?'':'sec'}" style="flex:1" onclick="D._emiShowPaid=true;renderEMI()">✅ Paid This Month (${paidList.length})</button>
   </div>`:''}
 
@@ -2017,7 +2067,7 @@ function renderEMI() {
 
   <div class="fi2">
     <div class="sh">
-      <div class="st">${showPaid?'✅ Paid EMIs':'⏳ Pending EMIs'} — ${MN[m]} ${y}</div>
+      <div class="st">${showPaid?'✅ Paid EMIs':'📋 All EMIs'} — ${MN[m]} ${y}</div>
       <div class="sa" onclick="openAdd('emi')">+ Add</div>
     </div>
     <div class="eil">
@@ -2026,6 +2076,7 @@ function renderEMI() {
         const st=isCurM?getEMIMonthStatus(e.id,y,m):{status:e.remaining>0?'pending':'paid'};
         const acc=accById(e.accountId);
         const isCl=e.remaining<=3;
+        const dLbl=isCurM&&st.status==='pending'?dueLabel(daysUntilDate(new Date(y,m,e.dueDay))):null;
         const statusColor={pending:'var(--am)',paid:'var(--g)',partial:'var(--bl)',skipped:'var(--r)'};
         return`<div class="ei ${isCl?'cl':''} ${st.status==='paid'?'paid-ei':''}" onclick="viewEMIHistory('${e.id}')">
           <div class="eii">${EMI_ICONS[e.type]||'📦'}</div>
@@ -2033,7 +2084,7 @@ function renderEMI() {
             <div class="enn">${e.name}</div>
             <div class="enm">Due ${e.dueDay}th · ${e.interest||0}% p.a.${acc?' · '+acc.name:''} · ${e.remaining} left</div>
             <div class="ep"><div class="ebar" style="width:${pct2.toFixed(0)}%"></div></div>
-            ${isCurM?`<span class="emi-status-badge ${st.status}">${st.status.toUpperCase()}${st.paidDate?' · '+st.paidDate:''}</span>`:''}
+            ${isCurM?(dLbl?`<span class="emi-status-badge" style="color:${dLbl.color};background:${dLbl.color}18">${dLbl.text.toUpperCase()}</span>`:`<span class="emi-status-badge ${st.status}">${st.status.toUpperCase()}${st.paidDate?' · '+st.paidDate:''}</span>`):''}
           </div>
           <div class="eir">
             <div class="eia">${fmt(e.monthly)}</div>
@@ -2524,8 +2575,10 @@ function renderSavings() {
           <div class="pb2" style="margin-top:8px"><div class="pf a" style="width:${paidPct.toFixed(0)}%"></div></div>
           <div style="font-size:.62rem;color:var(--t3);margin-top:3px">Received: ${fmt(c.actualReceived||0)} of ${fmt(c.totalExpected||0)}</div>
           ${isCurM&&c.status==='active'?(()=>{const cst=getChitMonthStatus(c.id,y,m);const cpaid=cst.status==='paid';
+            let dd=c.nextDue?new Date(c.nextDue):null; if(!dd||dd.getFullYear()!==y||dd.getMonth()!==m) dd=new Date(y,m,(new Date(c.startDate).getDate())||1);
+            const lbl=cpaid?null:dueLabel(daysUntilDate(dd));
             return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-              <span class="bdg ${cpaid?'g':'am'}" style="font-size:.6rem">${cpaid?'✅ Contribution paid':'⏳ '+MS[m]+' contribution pending'}</span>
+              <span class="bdg ${cpaid?'g':'am'}" style="font-size:.6rem;${!cpaid?`color:${lbl.color};background:${lbl.color}18`:''}">${cpaid?'✅ Contribution paid':lbl.text.toUpperCase()}</span>
               ${!cpaid?`<button class="sbtn sm" style="width:auto;padding:5px 12px;font-size:.68rem" onclick="event.stopPropagation();quickPayChit('${c.id}')">💰 Pay</button>`:`<span style="font-size:.6rem;color:var(--t3)" onclick="event.stopPropagation();viewChitHistory('${c.id}')">${fmt(cst.paidAmt)} · view →</span>`}
             </div>`;
           })():''}
