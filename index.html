@@ -545,7 +545,8 @@ const D = {
     ccPayments: [],
     // {id,cardId,amount,date,accountId,payType,note}
     chits: [],
-    // {id,name,monthly,months,startDate,nextDue,totalExpected,actualReceived,status,accountId,payouts[]}
+    // {id,name,monthly,months,startDate,nextDue,totalExpected,actualReceived,status,accountId,payouts[],
+    //  contribHistory:{YYYY-MM:{status,paidAmt,paidDate,note}}} — payouts=money chit gives you, contribHistory=your monthly payments into it
     budgets: [],
     // {id,category,amount,month}  month='YYYY-MM'
     transactions: [],
@@ -663,6 +664,8 @@ function load() {
       }
       // Ensure payHistory on all EMIs
       (p.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
+      // Ensure contribHistory on all chits
+      (p.chits||[]).forEach(c=>{ if(!c.contribHistory) c.contribHistory={}; });
       D.data = p;
     } catch(e) { console.warn('Load failed',e); }
   }
@@ -729,6 +732,7 @@ function importJSON() {
                      'ccCards','ccSpends','ccPayments','chits','budgets','goals','people','friendTxns'];
         arr.forEach(k=>{ if(!D.data[k]) D.data[k]=[]; });
         (D.data.emis||[]).forEach(e=>{ if(!e.payHistory) e.payHistory={}; });
+        (D.data.chits||[]).forEach(c=>{ if(!c.contribHistory) c.contribHistory={}; });
         if(!D.data.budgetIncome) D.data.budgetIncome={};
         if(!D.data.incomeByType) D.data.incomeByType={};
         if(!D.data.netWorthSnapshots) D.data.netWorthSnapshots={};
@@ -842,6 +846,23 @@ function setEMIMonthStatus(emiId, y, m, status, paidAmt, paidDate, note) {
   if (!emi.payHistory) emi.payHistory = {};
   const key = mk(y, m);
   emi.payHistory[key] = {status, paidAmt:paidAmt||0, paidDate:paidDate||null, note:note||''};
+}
+function getChitMonthStatus(chitId, y, m) {
+  const c = chitById(chitId); if (!c) return {status:'pending', paidAmt:0, paidDate:null};
+  if (!c.contribHistory) c.contribHistory = {};
+  return c.contribHistory[mk(y, m)] || {status:'pending', paidAmt:0, paidDate:null};
+}
+function setChitMonthStatus(chitId, y, m, status, paidAmt, paidDate, note) {
+  const c = chitById(chitId); if (!c) return;
+  if (!c.contribHistory) c.contribHistory = {};
+  c.contribHistory[mk(y, m)] = {status, paidAmt:paidAmt||0, paidDate:paidDate||null, note:note||''};
+}
+function chitContributedMonths(chitId) {
+  const c = chitById(chitId); if (!c || !c.contribHistory) return 0;
+  return Object.values(c.contribHistory).filter(h=>h.status==='paid').length;
+}
+function pendingChitsForMonth(y, m) {
+  return D.data.chits.filter(c => c.status==='active' && getChitMonthStatus(c.id,y,m).status!=='paid');
 }
 function activeEMIs() {
   return D.data.emis.filter(e => e.remaining > 0);
@@ -1953,6 +1974,8 @@ function renderEMI() {
   const paidList    = isCurM ? paidEMIsForMonth(y,m)    : [];
   const totalMonthly = active.reduce((s,e)=>s+e.monthly,0);
   const totalPending = active.reduce((s,e)=>s+e.monthly*e.remaining,0);
+  const activeChits = D.data.chits.filter(c=>c.status==='active');
+  const chitMonthly = activeChits.reduce((s,c)=>s+c.monthly,0);
   const closing = active.filter(e=>e.remaining<=3);
   let showPaid = D._emiShowPaid || false;
 
@@ -1972,6 +1995,7 @@ function renderEMI() {
       <span style="color:var(--r)">${active.length} active loan${active.length!==1?'s':''}</span>
       <span style="margin-left:auto;color:var(--am)">${fmt(totalPending)} total pending</span>
     </div>
+    ${chitMonthly>0?`<div style="margin-top:8px;font-size:.68rem;color:var(--t3)">+ ${fmt(chitMonthly)}/mo in chit fund contributions (${activeChits.length} active) — total monthly commitment: <strong style="color:var(--t2)">${fmt(totalMonthly+chitMonthly)}</strong></div>`:''}
   </div>
 
   ${closing.length?`<div class="advc fi2"><div class="advh"><div class="advav">🤖</div>
@@ -2499,6 +2523,12 @@ function renderSavings() {
           </div>
           <div class="pb2" style="margin-top:8px"><div class="pf a" style="width:${paidPct.toFixed(0)}%"></div></div>
           <div style="font-size:.62rem;color:var(--t3);margin-top:3px">Received: ${fmt(c.actualReceived||0)} of ${fmt(c.totalExpected||0)}</div>
+          ${isCurM&&c.status==='active'?(()=>{const cst=getChitMonthStatus(c.id,y,m);const cpaid=cst.status==='paid';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+              <span class="bdg ${cpaid?'g':'am'}" style="font-size:.6rem">${cpaid?'✅ Contribution paid':'⏳ '+MS[m]+' contribution pending'}</span>
+              ${!cpaid?`<button class="sbtn sm" style="width:auto;padding:5px 12px;font-size:.68rem" onclick="event.stopPropagation();quickPayChit('${c.id}')">💰 Pay</button>`:`<span style="font-size:.6rem;color:var(--t3)" onclick="event.stopPropagation();viewChitHistory('${c.id}')">${fmt(cst.paidAmt)} · view →</span>`}
+            </div>`;
+          })():''}
         </div>`;}).join('')}
     </div>`:`<div class="empty"><div class="eic">🏺</div><div class="em">No chit funds added.</div></div>`}
   </div>
@@ -3627,6 +3657,88 @@ function recordSIP() {
   toast(`✅ SIP ${fmt(inv.sip)} deducted from ${accById(accId)?.name||'Cash'}`,'ok');
 }
 
+function quickPayChit(chitId) {
+  const c=chitById(chitId); if(!c) return;
+  const accs=D.data.accounts;
+  const accOpts=accs.map(a=>`<option value="${a.id}" ${a.id===c.accountId?'selected':''}>${a.name} (${fmt(a.balance)})</option>`).join('');
+  openMod('🏺 Pay Chit: '+c.name,`
+    <div style="background:var(--card2);border-radius:var(--rr);padding:12px;margin-bottom:13px;text-align:center">
+      <div style="font-size:.65rem;color:var(--t3)">This Month's Contribution</div>
+      <div style="font-family:var(--fm);font-size:1.5rem;color:var(--am)">${fmt(c.monthly)}</div>
+      <div style="font-size:.62rem;color:var(--t3)">${chitContributedMonths(chitId)} of ${c.months} months contributed so far</div>
+    </div>
+    <div class="fg"><label class="fl">Payment Type</label>
+      <select class="fs" id="qcPayType">
+        <option value="paid">Full Payment — ${fmt(c.monthly)}</option>
+        <option value="partial">Partial Payment</option>
+        <option value="skipped">Mark as Skipped</option>
+      </select></div>
+    <div class="fg" id="qcPartialRow" style="display:none"><label class="fl">Amount Paid (₹)</label>
+      <input class="fi" type="number" id="qcPartialAmt" placeholder="${c.monthly}" inputmode="decimal"/></div>
+    <div class="fg"><label class="fl">Pay From Account</label>
+      <select class="fs" id="qcPayAcc"><option value="">Cash (not tracked)</option>${accOpts}</select></div>
+    <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="qcPayDate" value="${td()}"/></div>
+    <div class="fg"><label class="fl">Note</label><input class="fi" id="qcPayNote" placeholder="Optional note"/></div>
+    <button class="sbtn" onclick="confirmChitPayment('${chitId}')">Confirm Payment</button>`);
+  setTimeout(()=>{
+    document.getElementById('qcPayType')?.addEventListener('change',function(){
+      const row=document.getElementById('qcPartialRow');
+      if(row) row.style.display=this.value==='partial'?'block':'none';
+    });
+  },50);
+}
+function confirmChitPayment(chitId) {
+  const c=chitById(chitId); if(!c) return;
+  const payType=document.getElementById('qcPayType').value;
+  const paidAmt=payType==='partial'?(parseFloat(document.getElementById('qcPartialAmt')?.value)||0):c.monthly;
+  const accId=document.getElementById('qcPayAcc').value;
+  const date=document.getElementById('qcPayDate').value;
+  const note=document.getElementById('qcPayNote').value;
+  const {y,m}=D.sel;
+  if(payType==='partial'&&paidAmt<=0) return toast('Enter partial payment amount','err');
+  setChitMonthStatus(chitId,y,m,payType,paidAmt,date,note);
+  if((payType==='paid'||payType==='partial')&&accId) debit(accId,paidAmt,'Chit contribution: '+c.name,date);
+  save(); renderAll(); closeAll();
+  const msg=payType==='paid'?`✅ ${c.name} contribution paid: ${fmt(c.monthly)}`:
+    payType==='partial'?`✅ Partial: ${fmt(paidAmt)} for ${c.name}`:`⚠ ${c.name} contribution marked skipped`;
+  toast(msg, payType==='skipped'?'am':'ok');
+}
+function viewChitHistory(chitId) {
+  const c=chitById(chitId); if(!c) return;
+  if(!c.contribHistory) c.contribHistory={};
+  const histKeys=Object.keys(c.contribHistory).sort().reverse().slice(0,24);
+  const now=new Date();
+  const currentKey=mk(now.getFullYear(),now.getMonth());
+  const futureMonths=[];
+  for(let i=1;i<=3;i++){const fd=new Date(now.getFullYear(),now.getMonth()+i,1);futureMonths.push(mk(fd.getFullYear(),fd.getMonth()));}
+  const allKeys=[...new Set([currentKey,...futureMonths,...histKeys])].sort().reverse();
+  openMod('📅 Contribution History: '+c.name,`
+    <div style="background:var(--card2);border-radius:var(--rr);padding:11px;margin-bottom:13px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div><div style="font-size:.58rem;color:var(--t3)">Monthly</div><div style="font-family:var(--fm);font-size:.9rem">${fmt(c.monthly)}</div></div>
+        <div><div style="font-size:.58rem;color:var(--t3)">Contributed</div><div style="font-family:var(--fm);font-size:.9rem;color:var(--g)">${chitContributedMonths(chitId)}/${c.months}</div></div>
+        <div><div style="font-size:.58rem;color:var(--t3)">Total Paid In</div><div style="font-family:var(--fm);font-size:.9rem;color:var(--am)">${fmt(chitContributedMonths(chitId)*c.monthly)}</div></div>
+      </div>
+    </div>
+    <div style="font-size:.75rem;font-weight:500;margin-bottom:8px;color:var(--t2)">Month-wise Contribution History</div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      ${allKeys.map(key=>{
+        const {y,m}=mkp(key);
+        const st=c.contribHistory[key]||{status:key>currentKey?'upcoming':'pending'};
+        const isCur=key===currentKey; const isFut=key>currentKey;
+        const statusLabel=isFut?'upcoming':st.status;
+        const colors={paid:'var(--g)',pending:'var(--am)',partial:'var(--bl)',skipped:'var(--r)',upcoming:'var(--t3)'};
+        return `<div class="emi-hist-row" style="${isCur?'background:var(--card2);border-radius:6px;padding:5px 7px':''}">
+          <span class="emi-hist-month">${MS[m]} ${y}${isCur?' ●':''}</span>
+          <span class="emi-hist-status ${statusLabel}" style="color:${colors[statusLabel]||'var(--t2)'};background:${colors[statusLabel]||'var(--t2)'}18">${statusLabel.toUpperCase()}</span>
+          ${st.paidAmt>0?`<span class="emi-hist-amt">${fmt(st.paidAmt)}</span>`:''}
+          ${st.paidDate?`<span class="emi-hist-date">${st.paidDate}</span>`:''}
+          ${!isFut&&statusLabel!=='paid'?`<span class="paybtn" style="font-size:.58rem;margin-left:4px" onclick="closeAll();quickPayChit('${chitId}')">Pay</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>`);
+}
+
 function saveChit(editId) {
   const name=document.getElementById('fChitName').value.trim();
   const mon=parseFloat(document.getElementById('fChitMon').value)||0;
@@ -3640,7 +3752,7 @@ function saveChit(editId) {
     const c=chitById(editId); if(!c) return;
     Object.assign(c,{name,monthly:mon,months,startDate:start,nextDue:due,totalExpected:total,accountId:accId});
   } else {
-    D.data.chits.push({id:uid(),name,monthly:mon,months,startDate:start,nextDue:due,totalExpected:total,actualReceived:0,status:'active',accountId:accId,payouts:[]});
+    D.data.chits.push({id:uid(),name,monthly:mon,months,startDate:start,nextDue:due,totalExpected:total,actualReceived:0,status:'active',accountId:accId,payouts:[],contribHistory:{}});
   }
   save(); renderAll(); closeAll();
   toast(`✅ Chit ${editId?'updated':'added'}: ${name}`,'ok');
@@ -3666,6 +3778,10 @@ function viewChit(id) {
       <button class="sbtn sm" style="flex:1" onclick="declareChitPayout('${id}')">💵 Declare Payout</button>
       <button class="sbtn sec sm" style="flex:1" onclick="openAdd('chit','${id}')">✏️ Edit</button>
     </div>
+    ${c.status==='active'?`<div style="display:flex;gap:7px;margin-bottom:14px">
+      <button class="sbtn sm" style="flex:1" onclick="closeAll();quickPayChit('${id}')">💰 Pay Contribution</button>
+      <button class="sbtn sec sm" style="flex:1" onclick="closeAll();viewChitHistory('${id}')">📅 Contribution History</button>
+    </div>`:''}
     ${(c.payouts||[]).length?`<div style="font-size:.78rem;font-weight:500;margin-bottom:8px">Payout History</div>
     <div class="txl">${c.payouts.map(p=>`<div class="txi"><div class="tico cr">💵</div>
       <div style="flex:1"><div class="txn">${fmt(p.amount)} received</div><div class="txs">${p.date}</div></div>
