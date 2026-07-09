@@ -34,6 +34,20 @@
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
+      "name": "Add Income",
+      "short_name": "Income",
+      "description": "Log salary or other income",
+      "url": "./index.html#income",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Pay Chit",
+      "short_name": "Pay Chit",
+      "description": "Pay this month's chit contribution",
+      "url": "./index.html#paychit",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "View Report",
       "short_name": "Report",
       "description": "See this month's report",
