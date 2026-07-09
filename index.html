@@ -830,10 +830,12 @@ function monthTotalIncome(y, m) {
   return monthIncomes(y, m).reduce((s, i) => s + i.amount, 0);
 }
 function monthIncome(y, m) {
-  // "Main income" = Salary recorded for the month. If nothing has been logged yet
-  // for this month (e.g. a future month), fall back to the assumed default salary.
+  // Used for ratio/percentage math (savings rate, EMI burden %, spend %) — this must be
+  // TOTAL income, not just Salary, or those ratios read as 0% whenever a month has only
+  // non-Salary entries logged (e.g. freelance-only months). Salary is still the headline
+  // figure shown on the Home tile via monthSalaryIncome(); this drives the math only.
   const list = monthIncomes(y, m);
-  if (list.length) return monthSalaryIncome(y, m);
+  if (list.length) return monthTotalIncome(y, m);
   return D.data.defaultIncome || 0;
 }
 function getEMIMonthStatus(emiId, y, m) {
@@ -2013,23 +2015,24 @@ function renderEMI() {
     upcoming.sort((a,b)=>a.dueDate-b.dueDate);
   }
 
-  // 12-month forecast
+  // 12-month forecast — includes chit contributions until each chit's remaining months run out
   const forecast=[];
   for(let i=0;i<12;i++){
     const fd=new Date(now.getFullYear(),now.getMonth()+i,1);
     const at=active.filter(e=>e.remaining>i);
-    forecast.push({label:MS[fd.getMonth()]+' '+fd.getFullYear(),total:at.reduce((s,e)=>s+e.monthly,0),count:at.length});
+    const chitsAt=activeChits.filter(c=>Math.max(0,c.months-chitContributedMonths(c.id))>i);
+    forecast.push({label:MS[fd.getMonth()]+' '+fd.getFullYear(),total:at.reduce((s,e)=>s+e.monthly,0)+chitsAt.reduce((s,c)=>s+c.monthly,0),count:at.length+chitsAt.length,emiTotal:at.reduce((s,e)=>s+e.monthly,0),chitTotal:chitsAt.reduce((s,c)=>s+c.monthly,0)});
   }
 
   document.getElementById('cEMI').innerHTML = `
   <div class="hero fi2">
-    <div class="hl">Monthly EMI Burden</div>
-    <div class="ha"><span class="rr">₹</span>${totalMonthly.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
+    <div class="hl">Monthly Commitments${chitMonthly>0?' (EMI + Chits)':''}</div>
+    <div class="ha"><span class="rr">₹</span>${(totalMonthly+chitMonthly).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
     <div class="ht">
-      <span style="color:var(--r)">${active.length} active loan${active.length!==1?'s':''}</span>
-      <span style="margin-left:auto;color:var(--am)">${fmt(totalPending)} total pending</span>
+      <span style="color:var(--r)">${active.length} loan${active.length!==1?'s':''}${activeChits.length?' + '+activeChits.length+' chit'+(activeChits.length!==1?'s':''):''}</span>
+      <span style="margin-left:auto;color:var(--am)">${fmt(totalPending)} loan payoff left</span>
     </div>
-    ${chitMonthly>0?`<div style="margin-top:8px;font-size:.68rem;color:var(--t3)">+ ${fmt(chitMonthly)}/mo in chit fund contributions (${activeChits.length} active) — total monthly commitment: <strong style="color:var(--t2)">${fmt(totalMonthly+chitMonthly)}</strong></div>`:''}
+    ${chitMonthly>0?`<div style="margin-top:8px;font-size:.68rem;color:var(--t3)">EMIs: <strong style="color:var(--t2)">${fmt(totalMonthly)}</strong>/mo &nbsp;+&nbsp; Chits: <strong style="color:var(--t2)">${fmt(chitMonthly)}</strong>/mo — chits are tracked as savings on the Savings tab, but counted here since they're a fixed monthly commitment too.</div>`:''}
   </div>
 
   ${closing.length?`<div class="advc fi2"><div class="advh"><div class="advav">🤖</div>
@@ -2120,10 +2123,10 @@ function renderEMI() {
 
   <!-- 12 MONTH FORECAST -->
   <div class="card fi2">
-    <div class="st" style="margin-bottom:12px">📅 12-Month Forecast</div>
+    <div class="st" style="margin-bottom:12px">📅 12-Month Forecast${chitMonthly>0?' (EMI + Chits)':''}</div>
     <div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Month</th><th>EMI Total</th><th>Loans</th></tr></thead>
-      <tbody>${forecast.map((f,i)=>`<tr class="${i===0?'hilite':''}"><td>${f.label}${i===0?' <span class="bdg p">Now</span>':''}</td><td class="mn">${fmt(f.total)}</td><td style="color:var(--t3)">${f.count}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Month</th><th>Total</th>${chitMonthly>0?'<th>EMI</th><th>Chit</th>':''}<th>Count</th></tr></thead>
+      <tbody>${forecast.map((f,i)=>`<tr class="${i===0?'hilite':''}"><td>${f.label}${i===0?' <span class="bdg p">Now</span>':''}</td><td class="mn">${fmt(f.total)}</td>${chitMonthly>0?`<td class="mn" style="color:var(--t3)">${fmt(f.emiTotal)}</td><td class="mn" style="color:var(--am)">${fmt(f.chitTotal)}</td>`:''}<td style="color:var(--t3)">${f.count}</td></tr>`).join('')}</tbody>
     </table></div>
   </div>
 
@@ -2571,15 +2574,16 @@ function renderSavings() {
   <!-- CHIT FUNDS -->
   <div class="fi2">
     <div class="sh"><div class="st">🏺 Chit Funds</div><div class="sa" onclick="openAdd('chit')">+ Add</div></div>
+    ${isCurM&&pendingChitsForMonth(y,m).length>0?`<button class="sbtn sec sm" style="margin-bottom:8px" onclick="markAllChitsPaid()">✅ Mark All Chit Contributions Paid for ${MS[m]}</button>`:''}
     ${chits.length?`<div style="display:flex;flex-direction:column;gap:7px">
       ${chits.map(c=>{
-        const paid=c.monthly*(c.months-(Math.ceil((new Date(c.nextDue||c.startDate)-new Date())/86400000/30)||0));
+        const contributedMonths=chitContributedMonths(c.id);
+        const remainingMonths=Math.max(0,c.months-contributedMonths);
         const paidPct=pct(c.actualReceived||0,c.totalExpected||c.monthly*c.months||1);
-        const statusColor={active:'var(--am)',received:'var(--g)',completed:'var(--g)',closed:'var(--t3)'}[c.status]||'var(--t2)';
         return`<div class="chitc" onclick="viewChit('${c.id}')">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><div class="chitn">${c.name}</div>
-              <div class="chitm">${fmt(c.monthly)}/mo · ${c.months} months · Due: ${c.nextDue||'—'}</div>
+              <div class="chitm">${fmt(c.monthly)}/mo · ${contributedMonths}/${c.months} months paid${c.status==='active'?' · '+remainingMonths+' left':''}</div>
             </div>
             <div style="text-align:right">
               <div class="chita">${fmt(c.totalExpected||c.monthly*c.months||0)}</div>
@@ -2593,7 +2597,7 @@ function renderSavings() {
             const lbl=cpaid?null:dueLabel(daysUntilDate(dd));
             return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
               <span class="bdg ${cpaid?'g':'am'}" style="font-size:.6rem;${!cpaid?`color:${lbl.color};background:${lbl.color}18`:''}">${cpaid?'✅ Contribution paid':lbl.text.toUpperCase()}</span>
-              ${!cpaid?`<button class="sbtn sm" style="width:auto;padding:5px 12px;font-size:.68rem" onclick="event.stopPropagation();quickPayChit('${c.id}')">💰 Pay</button>`:`<span style="font-size:.6rem;color:var(--t3)" onclick="event.stopPropagation();viewChitHistory('${c.id}')">${fmt(cst.paidAmt)} · view →</span>`}
+              ${!cpaid?`<button class="sbtn sm" style="width:auto;padding:5px 12px;font-size:.68rem" onclick="event.stopPropagation();quickPayChit('${c.id}')">💰 Mark Paid</button>`:`<span style="font-size:.6rem;color:var(--t3)" onclick="event.stopPropagation();viewChitHistory('${c.id}')">${fmt(cst.paidAmt)} · view →</span>`}
             </div>`;
           })():''}
         </div>`;}).join('')}
@@ -2642,8 +2646,9 @@ function renderReport() {
   const emiAmt  = D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0);
   const paidEMIAmt = paidEMIsForMonth(y,m).reduce((s,e)=>s+e.monthly,0);
   const sipAmt  = totalSIP();
+  const chitMonthly = D.data.chits.filter(c=>c.status==='active').reduce((s,c)=>s+c.monthly,0);
   const ccPay   = D.data.ccPayments.filter(p=>(p.date||'').startsWith(mk(y,m))).reduce((s,p)=>s+p.amount,0);
-  const saved   = income - spent - emiAmt - sipAmt;
+  const saved   = income - spent - emiAmt - sipAmt - chitMonthly;
   const spPct   = pct(spent,income);
   const emPct   = pct(emiAmt,income);
   const svPct   = Math.max(0,pct(saved,income));
@@ -2691,6 +2696,35 @@ function renderReport() {
       <div style="font-size:.62rem;color:var(--t3);margin-top:3px">${svPct.toFixed(0)}% of income saved</div>
     </div>
   </div>
+
+  <!-- MONEY FLOW -->
+  ${income>0?`<div class="card fi2">
+    <div class="st" style="margin-bottom:12px">💧 Where Your Money Went</div>
+    <div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin-bottom:14px;background:var(--card2)">
+      ${[
+        {l:'Spending',v:spent,c:'var(--r)'},
+        {l:'EMI',v:emiAmt,c:'var(--am)'},
+        {l:'Chit',v:chitMonthly,c:'#a855f7'},
+        {l:'Invested (SIP)',v:sipAmt,c:'var(--bl)'},
+        {l:'Leftover',v:Math.max(0,saved),c:'var(--g)'}
+      ].filter(s=>s.v>0).map(s=>`<div style="width:${pct(s.v,income).toFixed(1)}%;background:${s.c}" title="${s.l}: ${fmt(s.v)}"></div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+      ${[
+        {l:'💸 Spending',v:spent,c:'var(--r)'},
+        {l:'🏦 EMI',v:emiAmt,c:'var(--am)'},
+        {l:'🏺 Chit',v:chitMonthly,c:'#a855f7'},
+        {l:'📈 Invested',v:sipAmt,c:'var(--bl)'},
+        {l:'💰 Leftover',v:Math.max(0,saved),c:'var(--g)'}
+      ].filter(s=>s.v>0).map(s=>`<div style="display:flex;align-items:center;gap:6px;font-size:.72rem">
+        <span style="width:8px;height:8px;border-radius:50%;background:${s.c};flex-shrink:0"></span>
+        <span style="flex:1;color:var(--t2)">${s.l}</span>
+        <span style="font-family:var(--fm);color:var(--t2)">${fmt(s.v)}</span>
+        <span style="font-family:var(--fm);color:var(--t3);width:34px;text-align:right">${pct(s.v,income).toFixed(0)}%</span>
+      </div>`).join('')}
+    </div>
+    ${saved<0?`<div style="margin-top:10px;font-size:.68rem;background:var(--r)08;color:var(--r);border-radius:6px;padding:6px 9px">⚠ You've committed more than you earned this month (spending + EMI + chit + SIP exceeds income).</div>`:''}
+  </div>` : ''}
 
   <!-- FINANCIAL HEALTH METERS -->
   <div class="card fi2">
@@ -2851,7 +2885,8 @@ function renderAdviser() {
   const sipAmt=totalSIP();
   const invTot=totalInvestments();
   const ccOut=totalCCOutstanding();
-  const saved=income-spent-emiAmt-sipAmt;
+  const chitMonthlyAdv=D.data.chits.filter(c=>c.status==='active').reduce((s,c)=>s+c.monthly,0);
+  const saved=income-spent-emiAmt-sipAmt-chitMonthlyAdv;
   const spPct=income>0?spent/income*100:0;
   const emPct=income>0?emiAmt/income*100:0;
   const closing=D.data.emis.filter(e=>e.remaining>0&&e.remaining<=3);
@@ -3724,6 +3759,16 @@ function recordSIP() {
   toast(`✅ SIP ${fmt(inv.sip)} deducted from ${accById(accId)?.name||'Cash'}`,'ok');
 }
 
+function markAllChitsPaid() {
+  const {y,m}=D.sel;
+  if(!confirm('Mark ALL pending chit contributions as paid for '+MN[m]+' '+y+'?')) return;
+  pendingChitsForMonth(y,m).forEach(c=>{
+    setChitMonthStatus(c.id,y,m,'paid',c.monthly,td(),'Bulk marked paid');
+    if(c.accountId) debit(c.accountId,c.monthly,'Chit contribution: '+c.name,td());
+  });
+  save(); renderAll();
+  toast('✅ All chit contributions marked paid for '+MN[m],'ok');
+}
 function quickPayChit(chitId) {
   const c=chitById(chitId); if(!c) return;
   const accs=D.data.accounts;
