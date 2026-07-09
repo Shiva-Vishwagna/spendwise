@@ -1758,6 +1758,8 @@ function renderHome() {
   const otherInc= monthOtherIncome(y, m);
   const totalInc= monthTotalIncome(y, m);
   const incByType = monthIncomeByType(y, m);
+  const salaryEntries = monthIncomes(y, m).filter(i=>i.type==='Salary');
+  const primarySalaryEntry = salaryEntries.length ? salaryEntries.reduce((a,b)=>a.amount>=b.amount?a:b) : null;
   const spent   = exps.reduce((s,e)=>s+e.amount,0);
   const emiAmt  = D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0);
   const pendEMI = totalEMIForMonth(y, m);
@@ -1812,7 +1814,7 @@ function renderHome() {
       <span style="margin-left:auto;opacity:.7">${savePct.toFixed(0)}% saved</span>
     </div>
     <div class="hs">
-      <div class="hsi" onclick="openAdd('income')"><div class="hsil">Income</div><div class="hsiv" style="color:var(--g)">${fmt(totalInc)}</div>${Object.keys(incByType).length?`<div style="font-size:.56rem;color:var(--t3)">${Object.keys(incByType).map(t=>`${INC_ICONS[t]||'💰'} ${fmt(incByType[t])}`).join(' + ')}</div>`:''}</div>
+      <div class="hsi" onclick="${primarySalaryEntry?`editIncome('${primarySalaryEntry.id}')`:`openAdd('income')`}"><div class="hsil">Income${primarySalaryEntry?' <span style="opacity:.55">✏️</span>':''}</div><div class="hsiv" style="color:var(--g)">${fmt(totalInc)}</div>${Object.keys(incByType).length?`<div style="font-size:.56rem;color:var(--t3)">${Object.keys(incByType).map(t=>`${INC_ICONS[t]||'💰'} ${fmt(incByType[t])}`).join(' + ')}</div>`:''}</div>
       <div class="hsi" onclick="openAdd('expense')"><div class="hsil">Spent</div><div class="hsiv" style="color:var(--r)">${fmt(spent)}</div></div>
       <div class="hsi" onclick="openPage('EMI')"><div class="hsil">EMIs</div><div class="hsiv" style="color:var(--am)">${fmt(emiAmt)}</div></div>
       <div class="hsi" onclick="openPage('CC')"><div class="hsil">CC Due</div><div class="hsiv" style="color:${ccOut>0?'var(--r)':'var(--t)'}">${fmt(ccOut)}</div></div>
@@ -3097,8 +3099,9 @@ function openAdd(type, editId) {
     const now=new Date();
     const opts=[];
     for(let i=-2;i<=3;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const oy=d.getFullYear(),om=d.getMonth();const ok=mk(oy,om);const isCur=i===0,isFut=i>0,isSel=inc?inc.forMonth===ok:(oy===D.sel.y&&om===D.sel.m);opts.push(`<option value="${ok}" ${isSel?'selected':''}>${MN[om]} ${oy}${isCur?' (current)':''}${isFut?' ⏭ next':''}</option>`);}
-    openMod(inc?'✏️ Edit Income':'💼 Add Income',`
+    openMod(inc?(inc.type==='Salary'?'✏️ Edit Salary (Main Income)':'✏️ Edit Income'):'💼 Add Income',`
       <div class="notice bl" style="margin-bottom:12px"><span>💡</span><div><strong>Salary is your main income source.</strong> It drives savings %, budgets & insights. Every entry is kept separately — nothing gets overwritten, so add one row per payment (e.g. two freelance gigs in a month = two entries).</div></div>
+      ${inc&&inc.type==='Salary'?`<div class="notice g" style="margin-bottom:12px"><span>💼</span><div>You're editing your <strong>main income (Salary)</strong> for ${MN[mkp(inc.forMonth).m]} ${mkp(inc.forMonth).y}. Changing it here updates the figure used everywhere in the app.</div></div>`:''}
       <div class="fg"><label class="fl">Budget Month</label>
         <select class="fs" id="fIncMonth" onchange="onIncMonthChange()">${opts.join('')}</select>
         <div class="fhint" id="fIncHint"></div>
@@ -3129,7 +3132,8 @@ function openAdd(type, editId) {
       ${inc?`<div style="display:flex;gap:8px">
         <button class="sbtn" style="flex:2" onclick="saveIncome('${editId}')">Save Changes</button>
         <button class="sbtn danger" style="flex:1" onclick="deleteIncome('${editId}')">Delete</button>
-      </div>`:`<button class="sbtn" onclick="saveIncome()">💾 Save Income</button>`}`);
+      </div>
+      <div style="text-align:center;margin-top:10px"><span style="font-size:.72rem;color:var(--ac);cursor:pointer" onclick="openAdd('income')">➕ Add another income entry instead</span></div>`:`<button class="sbtn" onclick="saveIncome()">💾 Save Income</button>`}`);
     setTimeout(()=>{ const el=document.getElementById('fIncAcc'); if(el&&inc&&inc.accountId) el.value=inc.accountId; onIncMonthChange(); },40);
   }
 
