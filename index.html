@@ -1031,6 +1031,8 @@ function pp(d) {
           lock.style.display='none';
           document.getElementById('app').style.display='flex';
           renderAll();
+          checkMonthClose();
+          handleShortcutHash();
         }, 250);
       } else {
         document.getElementById('phint').innerHTML='<span class="pe">Wrong PIN</span>';
@@ -1194,34 +1196,52 @@ function showCalDay(y,m,day) {
 // ══════════════════════════════════════════════════════════
 //  RECURRING EXPENSE MANAGER
 // ══════════════════════════════════════════════════════════
+function nextRecurringDate(dateStr, freq) {
+  let d=new Date(dateStr);
+  const now=new Date(); now.setHours(0,0,0,0);
+  const step=()=>{ if(freq==='daily') d.setDate(d.getDate()+1); else if(freq==='weekly') d.setDate(d.getDate()+7); else d.setMonth(d.getMonth()+1); };
+  step();
+  let guard=0;
+  while(d<now&&guard<60){ step(); guard++; }
+  return d;
+}
 function renderRecurring() {
   const recs=D.data.expenses.filter(e=>e.recurring);
-  // Dedupe by desc+category+amount
+  // Dedupe by desc+category+amount, keep most recent occurrence of each
   const seen=new Set();
   const unique=[];
   for(const r of [...recs].sort((a,b)=>b.date.localeCompare(a.date))){
     const k=`${r.desc}-${r.category}-${r.amount}`;
     if(!seen.has(k)){seen.add(k);unique.push(r);}
   }
+  unique.forEach(r=>{ r._nextDue=nextRecurringDate(r.date,r.recurring); });
+  unique.sort((a,b)=>a._nextDue-b._nextDue);
   const pg=document.getElementById('cImport');
   if(!pg)return;
   const totalRec=unique.reduce((s,r)=>s+r.amount,0);
+  const dueSoon=unique.filter(r=>daysUntilDate(r._nextDue)<=3);
   pg.innerHTML=`
   <div class="hero fi2" style="padding:16px">
     <div class="hl">Recurring Expenses</div>
     <div class="ha" style="font-size:1.4rem">🔁 Monthly Commitments</div>
     <div class="ht"><span style="color:var(--r)">${fmt(totalRec)}/mo total</span><span style="margin-left:auto">${unique.length} items</span></div>
   </div>
-  ${unique.length?unique.map(r=>`
-  <div class="rec-item">
-    <div class="rec-dot"></div>
+  ${unique.length?unique.map(r=>{
+    const lbl=dueLabel(daysUntilDate(r._nextDue));
+    return `<div class="rec-item">
+    <div class="rec-dot" style="background:${lbl.color}"></div>
     <div style="flex:1">
       <div class="rec-name">${CAT_ICONS[r.category]||'📦'} ${r.desc||r.category}</div>
-      <div class="rec-meta">${r.recurring} · Last: ${r.date}</div>
+      <div class="rec-meta">${r.recurring} · <span style="color:${lbl.color}">${lbl.text}</span> (${r._nextDue.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) · Last paid: ${r.date}</div>
     </div>
-    <div class="rec-amt">−${fmt(r.amount)}/mo</div>
-    <div class="paybtn" onclick="openAdd('expense','${r.id}')">✏️</div>
-  </div>`).join(''):`<div class="empty"><div class="eic">🔁</div><div class="em">No recurring expenses marked.<br>When adding an expense, set Recurring = Monthly.</div></div>`}
+    <div style="text-align:right">
+      <div class="rec-amt">−${fmt(r.amount)}/mo</div>
+      <div style="display:flex;gap:4px;margin-top:4px">
+        <div class="paybtn" onclick="duplicateExpense('${r.id}')" title="Log this month's payment">✅ Pay</div>
+        <div class="paybtn" onclick="openAdd('expense','${r.id}')" title="Edit">✏️</div>
+      </div>
+    </div>
+  </div>`;}).join(''):`<div class="empty"><div class="eic">🔁</div><div class="em">No recurring expenses marked.<br>When adding an expense, set Recurring = Monthly.</div></div>`}
   `;
 }
 
@@ -1323,8 +1343,11 @@ function selMonth(y, m) { D.sel={y,m}; closeAll(); renderAll(); }
 function renderFriends() {
   const pg=document.getElementById('cFriends');
   if(!pg)return;
+  const {y,m}=D.sel;
   const owed=totalFriendsOwed();
   const recentTxns=[...D.data.friendTxns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+  const householdMembers=D.data.people.filter(p=>p.isHousehold);
+  const hh=householdMembers.length?householdMonthTotal(y,m):null;
   pg.innerHTML=`
   <div class="hero fi2" style="padding:16px">
     <div class="hl">Friends & Splits</div>
@@ -1334,12 +1357,19 @@ function renderFriends() {
   <div class="fg" style="margin:0 0 14px">
     <button class="sbtn" onclick="addPersonPrompt()">➕ Add Person</button>
   </div>
+  ${hh?`<div class="card fi2">
+    <div class="st" style="margin-bottom:10px">🏠 Household Budget — ${MN[m]}</div>
+    <div style="font-family:var(--fm);font-size:1.15rem;color:var(--g);margin-bottom:8px">${fmt(hh.total)}</div>
+    <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--t2);padding:5px 0;border-top:1px solid var(--border)"><span>Your spending</span><span style="font-family:var(--fm)">${fmt(hh.personal)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--t2);padding:5px 0"><span>${householdMembers.map(p=>p.name).join(', ')}'s share</span><span style="font-family:var(--fm)">${fmt(hh.theirs)}</span></div>
+    <div style="font-size:.6rem;color:var(--t3);margin-top:6px">Combines your personal spend with what you've paid on behalf of household members this month. Based on what's logged on this device — not live-synced across phones.</div>
+  </div>`:''}
   <div class="fi2">
     <div class="sh"><div class="st">Balances</div></div>
     ${D.data.people.length?D.data.people.map(p=>{
       const bal=friendBalance(p.id);
       return `<div class="split-member" style="cursor:pointer" onclick="viewPerson('${p.id}')">
-        <div class="split-name">👤 ${p.name}</div>
+        <div class="split-name">${p.isHousehold?'🏠':'👤'} ${p.name}</div>
         <div class="split-amt" style="color:${bal>0?'var(--g)':bal<0?'var(--r)':'var(--t3)'}">${bal===0?'Settled':(bal>0?'Owes you ':'You owe ')+fmt(bal)}</div>
       </div>`;
     }).join(''):'<div class="empty"><div class="eic">🧑‍🤝‍🧑</div><div class="em">No friends added yet.<br>Add a person, then tag them when you pay for their expenses.</div></div>'}
@@ -1365,6 +1395,19 @@ function addPersonPrompt() {
   save(); renderFriends();
   toast(`✅ ${name} added`,'ok');
 }
+function toggleHousehold(id, checked) {
+  const p=personById(id); if(!p) return;
+  p.isHousehold=checked;
+  save(); renderFriends();
+  toast(checked?'✅ Added to household budget':'Removed from household budget','ok');
+}
+function householdMonthTotal(y,m) {
+  const key=mk(y,m);
+  const personal=monthExpenses(y,m).reduce((s,e)=>s+e.amount,0);
+  const householdIds=new Set(D.data.people.filter(p=>p.isHousehold).map(p=>p.id));
+  const theirs=D.data.friendTxns.filter(t=>t.type==='lent'&&householdIds.has(t.personId)&&t.date.startsWith(key)).reduce((s,t)=>s+t.amount,0);
+  return {personal, theirs, total:personal+theirs};
+}
 function viewPerson(id) {
   const p=personById(id); if(!p) return;
   const bal=friendBalance(id);
@@ -1379,6 +1422,9 @@ function viewPerson(id) {
       ${bal>0?`<button class="sbtn sec sm" style="flex:1" onclick="settleFriend('${id}')">✅ Settle All</button>`:''}
       <button class="sbtn danger sm" style="flex:1" onclick="deletePerson('${id}')">🗑 Remove</button>
     </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--t2);margin-bottom:14px;cursor:pointer">
+      <input type="checkbox" ${p.isHousehold?'checked':''} onchange="toggleHousehold('${id}',this.checked)"/> 🏠 Household member — include their share in Household Budget
+    </label>
     <div style="font-size:.78rem;font-weight:500;margin-bottom:8px">History</div>
     <div class="txl">${txns.length?txns.map(t=>`<div class="txi">
       <div class="tico ${t.type==='lent'?'db':'cr'}">${t.type==='lent'?'💸':'✅'}</div>
@@ -1444,6 +1490,15 @@ function renderHome() {
   const streak     = isCurM ? noSpendStreakDays() : 0;
   const backupDays = daysSinceBackup();
   const staleFriends = isCurM ? staleFriendDebts(30) : [];
+  const dueSoonRecurring = isCurM ? (()=>{
+    const recs=D.data.expenses.filter(e=>e.recurring);
+    const seen=new Set(); const unique=[];
+    for(const r of [...recs].sort((a,b)=>b.date.localeCompare(a.date))){
+      const k=`${r.desc}-${r.category}-${r.amount}`;
+      if(!seen.has(k)){seen.add(k);unique.push(r);}
+    }
+    return unique.map(r=>({r,days:daysUntilDate(nextRecurringDate(r.date,r.recurring))})).filter(x=>x.days<=3).sort((a,b)=>a.days-b.days);
+  })() : [];
   // 6-month chart
   const chart6=[]; for(let i=5;i>=0;i--){const d=new Date(y,m-i,1);const cy=d.getFullYear(),cm=d.getMonth();chart6.push({y:cy,m:cm,v:monthExpenses(cy,cm).reduce((s,e)=>s+e.amount,0)});}
   const maxV=Math.max(...chart6.map(c=>c.v),1);
@@ -1488,6 +1543,8 @@ function renderHome() {
   ${nextInc?`<div class="notice bl fi2" style="cursor:pointer" onclick="selMonth(${nextD.getFullYear()},${nextD.getMonth()})"><span>⏭</span><div><strong>Next month income pre-set: ${fmt(nextInc)}</strong> for ${MN[nextD.getMonth()]} ${nextD.getFullYear()} — tap to view</div></div>`:''}
 
   ${(backupDays===null||backupDays>=14)?`<div class="notice am fi2" style="cursor:pointer" onclick="exportJSON()"><span>💾</span><div><strong>${backupDays===null?"You've never backed up your data.":`Last backup was ${backupDays} days ago.`}</strong> Tap to download a fresh JSON backup — your data only lives on this device.</div></div>`:''}
+
+  ${dueSoonRecurring.length?`<div class="notice am fi2" style="cursor:pointer" onclick="navTo('Recurring')"><span>🔁</span><div><strong>${dueSoonRecurring.length===1?dueSoonRecurring[0].r.desc+' ('+fmt(dueSoonRecurring[0].r.amount)+') '+dueLabel(dueSoonRecurring[0].days).text.toLowerCase():dueSoonRecurring.length+' recurring bills due soon.'}</strong> Tap to review.</div></div>`:''}
 
   ${staleFriends.length?`<div class="notice am fi2" style="cursor:pointer" onclick="navTo('Friends')"><span>🧑‍🤝‍🧑</span><div><strong>${staleFriends.length===1?staleFriends[0].person.name+' has owed you '+fmt(staleFriends[0].balance)+' for '+staleFriends[0].days+' days.':staleFriends.length+' friends have owed you money for 30+ days.'}</strong> Tap to follow up.</div></div>`:''}
 
@@ -1636,7 +1693,7 @@ function renderHome() {
         return`<div class="txi" onclick="editExpense('${tx.id}')">
           <div class="tico ${icon}">${CAT_ICONS[tx.category]||'📦'}</div>
           <div style="flex:1;min-width:0">
-            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.6rem;color:var(--ac2)">🔁</span>`:''}${splitBadge(tx)}</div>
+            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.6rem;color:var(--ac2)">🔁</span>`:''}${tx.photo?` <span onclick="event.stopPropagation();viewReceiptPhoto('${tx.photo.replace(/'/g,"\\'")}')" style="cursor:pointer">📷</span>`:''}${splitBadge(tx)}</div>
             <div class="txs">${tx.category}${card?' · 💳'+card.name:acc?' · '+acc.name:''} · ${tx.date}</div>
           </div>
           <div class="txa db">-${fmt(tx.amount)}${tx.splitTotal?`<div style="font-size:.56rem;color:var(--t3);font-weight:400">of ${fmt(tx.splitTotal)}</div>`:''}</div>
@@ -2342,7 +2399,10 @@ function renderReport() {
   if (searchQ) allExps = allExps.filter(e=>(e.desc||'').toLowerCase().includes(searchQ.toLowerCase())||(e.category||'').includes(searchQ.toLowerCase()));
 
   document.getElementById('cReport').innerHTML = `
-  <div style="font-family:var(--fd);font-size:1.1rem;font-weight:700;margin-bottom:4px">${MN[m]} ${y} Report</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <div style="font-family:var(--fd);font-size:1.1rem;font-weight:700">${MN[m]} ${y} Report</div>
+    <span style="font-size:.68rem;color:var(--ac);cursor:pointer" onclick="showMonthClose(${y},${m})">📋 Month Summary</span>
+  </div>
 
   <!-- MONTHLY SNAPSHOT -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" class="fi2">
@@ -2496,7 +2556,7 @@ function renderReport() {
         return`<div class="txi" onclick="editExpense('${tx.id}')">
           <div class="tico sp">${CAT_ICONS[tx.category]||'📦'}</div>
           <div style="flex:1;min-width:0">
-            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.58rem;color:var(--ac2)">🔁</span>`:''}${splitBadge(tx)}</div>
+            <div class="txn">${tx.desc||tx.category}${tx.recurring?` <span style="font-size:.58rem;color:var(--ac2)">🔁</span>`:''}${tx.photo?` <span onclick="event.stopPropagation();viewReceiptPhoto('${tx.photo.replace(/'/g,"\\'")}')" style="cursor:pointer">📷</span>`:''}${splitBadge(tx)}</div>
             <div class="txs">${tx.category}${card?' · 💳'+card.name:acc?' · '+acc.name:''} · ${tx.date}${tx.payMethod?` · ${tx.payMethod==='cc'?'CC':tx.payMethod==='account'?'Bank':'Cash'}`:''}</div>
           </div>
           <div class="txa db">-${fmt(tx.amount)}${tx.splitTotal?`<div style="font-size:.56rem;color:var(--t3);font-weight:400">of ${fmt(tx.splitTotal)}</div>`:''}</div>
@@ -2699,7 +2759,8 @@ function openAdd(type, editId) {
             'family','other'].map(c=>`<option value="${c}" ${ex&&ex.category===c?'selected':''}>${(CAT_ICONS[c]||'📦')+' '+c}</option>`).join('')}
         </select></div>
       <div class="fg"><label class="fl">Description</label>
-        <input class="fi" id="fDesc" value="${ex?ex.desc:''}" placeholder="What did you spend on?"/></div>
+        <input class="fi" id="fDesc" value="${ex?ex.desc:''}" placeholder="What did you spend on?" oninput="suggestCategoryFromDesc()"/>
+        <div class="fhint" id="fDescHint"></div></div>
       <div class="frow">
         <div class="fg"><label class="fl">Amount (₹)</label>
           <input class="fi" type="number" id="fAmt" value="${ex?(typeof ex.splitTotal==='number'?ex.splitTotal:ex.amount):''}" placeholder="0" inputmode="decimal"/></div>
@@ -2736,6 +2797,15 @@ function openAdd(type, editId) {
       </div>
       <div class="fg"><label class="fl">Note (optional)</label>
         <input class="fi" id="fNote" value="${ex?ex.note||'':''}" placeholder="Any additional notes"/></div>
+      <div class="fg"><label class="fl">Receipt Photo (optional)</label>
+        <input type="file" accept="image/*" id="fPhotoFile" style="display:none" onchange="handleReceiptPhoto(event)"/>
+        <div id="fPhotoPreviewWrap">
+          ${ex&&ex.photo?`<div style="position:relative;display:inline-block"><img src="${ex.photo}" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--border)" onclick="viewReceiptPhoto('${ex.photo.replace(/'/g,"\\'")}')"/><span style="position:absolute;top:-6px;right:-6px;background:var(--r);color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;cursor:pointer" onclick="removeReceiptPhoto()">✕</span></div>`
+          :`<button type="button" class="sbtn sec sm" onclick="document.getElementById('fPhotoFile').click()">📷 Attach Photo</button>`}
+        </div>
+        <input type="hidden" id="fPhoto" value="${ex&&ex.photo?ex.photo:''}"/>
+        <div class="fhint">Compressed and stored on this device only — useful for warranty/returns.</div>
+      </div>
       <div class="fg"><label class="fl">Recurring</label>
         <select class="fs" id="fRecurring">
           <option value="" ${!ex||!ex.recurring?'selected':''}>One-time</option>
@@ -3071,6 +3141,53 @@ function openAdd(type, editId) {
 // ══════════════════════════════════════════════════════════
 //  FORM HELPERS
 // ══════════════════════════════════════════════════════════
+function handleReceiptPhoto(event) {
+  const file=event.target.files[0]; if(!file) return;
+  if(!file.type.startsWith('image/')) return toast('Please select an image file','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const maxW=600;
+      const scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.6);
+      const hiddenEl=document.getElementById('fPhoto');
+      if(hiddenEl) hiddenEl.value=dataUrl;
+      const wrap=document.getElementById('fPhotoPreviewWrap');
+      if(wrap) wrap.innerHTML=`<div style="position:relative;display:inline-block"><img src="${dataUrl}" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--border)"/><span style="position:absolute;top:-6px;right:-6px;background:var(--r);color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;cursor:pointer" onclick="removeReceiptPhoto()">✕</span></div>`;
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removeReceiptPhoto() {
+  const hiddenEl=document.getElementById('fPhoto'); if(hiddenEl) hiddenEl.value='';
+  const wrap=document.getElementById('fPhotoPreviewWrap');
+  if(wrap) wrap.innerHTML=`<button type="button" class="sbtn sec sm" onclick="document.getElementById('fPhotoFile').click()">📷 Attach Photo</button>`;
+}
+function viewReceiptPhoto(dataUrl) {
+  openMod('🧾 Receipt', `<img src="${dataUrl}" style="width:100%;border-radius:10px"/>`);
+}
+function suggestCategoryFromDesc() {
+  const descEl=document.getElementById('fDesc');
+  const catEl=document.getElementById('fCat');
+  const hintEl=document.getElementById('fDescHint');
+  if(!descEl||!catEl) return;
+  const desc=descEl.value.trim().toLowerCase();
+  if(desc.length<3){ if(hintEl) hintEl.innerHTML=''; return; }
+  const matches=D.data.expenses.filter(e=>(e.desc||'').trim().toLowerCase()===desc);
+  if(matches.length){
+    const latest=matches.sort((a,b)=>b.date.localeCompare(a.date))[0];
+    if(catEl.value!==latest.category){
+      catEl.value=latest.category;
+      if(hintEl) hintEl.innerHTML=`💡 Auto-set to <strong>${CAT_ICONS[latest.category]||''} ${latest.category}</strong> — you've used this description ${matches.length>1?matches.length+' times':'before'}.`;
+    } else if(hintEl) hintEl.innerHTML='';
+  } else if(hintEl) hintEl.innerHTML='';
+}
 function onPayMethodChange() {
   const v=document.getElementById('fPayMethod')?.value;
   const ar=document.getElementById('fAccRow');
@@ -3159,6 +3276,7 @@ function saveExpense(editId) {
   const accId=method==='account'?(document.getElementById('fAcc')?.value||''):'';
   const ccId=method==='cc'?(document.getElementById('fCC')?.value||''):'';
   const note=document.getElementById('fNote')?.value||'';
+  const photo=document.getElementById('fPhoto')?.value||'';
   const recurring=document.getElementById('fRecurring')?.value||'';
   const splitWith=Array.from(document.querySelectorAll('.fSplitChk:checked')).map(el=>el.value);
   const splitIncludeMe=document.getElementById('fSplitIncludeMe')?.checked!==false;
@@ -3179,7 +3297,7 @@ function saveExpense(editId) {
     if(ex.payMethod==='account'&&ex.accountId){const old=accById(ex.accountId);if(old)old.balance+=oldFull;}
     if(ex.payMethod==='cc'&&ex.ccId){const oc=ccById(ex.ccId);if(oc)oc.outstanding=Math.max(0,(oc.outstanding||0)-oldFull);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==editId);}
     D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==editId);
-    Object.assign(ex,{category:cat,desc:desc||cat,amount:personalAmt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,
+    Object.assign(ex,{category:cat,desc:desc||cat,amount:personalAmt,date,accountId:accId||null,ccId:ccId||null,payMethod:method,note,photo:photo||null,recurring,
       personId:null,splitWith:isSplit?splitWith:null,splitIncludeMe:isSplit?splitIncludeMe:null,splitTotal:isSplit?billAmt:null});
     if(isSplit) splitWith.forEach(pid=>D.data.friendTxns.push({id:uid(),personId:pid,type:'lent',amount:perShare,date,note:desc||cat,method,expenseId:editId}));
     // Apply new CC/account effects using the full bill amount
@@ -3190,7 +3308,7 @@ function saveExpense(editId) {
     }
   } else {
     const expId=uid();
-    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:personalAmt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,recurring,
+    D.data.expenses.push({id:expId,date,category:cat,desc:desc||cat,amount:personalAmt,accountId:accId||null,ccId:ccId||null,payMethod:method,note,photo:photo||null,recurring,
       personId:null,splitWith:isSplit?splitWith:null,splitIncludeMe:isSplit?splitIncludeMe:null,splitTotal:isSplit?billAmt:null});
     if(method==='account'&&accId) debit(accId,billAmt,desc||cat,date);
     if(method==='cc'&&ccId) {
@@ -3228,14 +3346,23 @@ function duplicateExpense(id) {
 }
 
 function deleteExpense(id) {
-  if(!confirm('Delete this expense?')) return;
   const ex=expById(id); if(!ex) return;
   const fullAmt=(typeof ex.splitTotal==='number')?ex.splitTotal:ex.amount;
   if(ex.payMethod==='account'&&ex.accountId){const acc=accById(ex.accountId);if(acc)acc.balance+=fullAmt;}
+  const removedCCSpends=D.data.ccSpends.filter(s=>s.expenseId===id);
   if(ex.payMethod==='cc'&&ex.ccId){const card=ccById(ex.ccId);if(card)card.outstanding=Math.max(0,(card.outstanding||0)-fullAmt);D.data.ccSpends=D.data.ccSpends.filter(s=>s.expenseId!==id);}
+  const removedFriendTxns=D.data.friendTxns.filter(t=>t.expenseId===id);
   D.data.friendTxns=D.data.friendTxns.filter(t=>t.expenseId!==id);
   D.data.expenses=D.data.expenses.filter(e=>e.id!==id);
-  save(); renderAll(); closeAll(); toast('Expense deleted','ok');
+  save(); renderAll(); closeAll();
+  toastUndo('Expense deleted', ()=>{
+    D.data.expenses.push(ex);
+    if(ex.payMethod==='account'&&ex.accountId){const acc=accById(ex.accountId);if(acc)acc.balance-=fullAmt;}
+    if(ex.payMethod==='cc'&&ex.ccId){const card=ccById(ex.ccId);if(card)card.outstanding=(card.outstanding||0)+fullAmt;}
+    removedCCSpends.forEach(s=>D.data.ccSpends.push(s));
+    removedFriendTxns.forEach(t=>D.data.friendTxns.push(t));
+    save(); renderAll();
+  });
 }
 
 function saveIncome(editId) {
@@ -3265,11 +3392,15 @@ function saveIncome(editId) {
 }
 function editIncome(id) { openAdd('income', id); }
 function deleteIncome(id) {
-  if(!confirm('Delete this income entry?')) return;
   const inc=incomeById(id); if(!inc) return;
   if(inc.accountId){ const acc=accById(inc.accountId); if(acc) acc.balance-=inc.amount; }
   D.data.incomes=D.data.incomes.filter(i=>i.id!==id);
-  save(); renderAll(); closeAll(); toast('Income deleted','ok');
+  save(); renderAll(); closeAll();
+  toastUndo('Income deleted', ()=>{
+    D.data.incomes.push(inc);
+    if(inc.accountId){ const acc=accById(inc.accountId); if(acc) acc.balance+=inc.amount; }
+    save(); renderAll();
+  });
 }
 
 function saveEMI(editId) {
@@ -3296,9 +3427,10 @@ function saveEMI(editId) {
   toast(`✅ EMI ${editId?'updated':'added'}: ${name}`,'ok');
 }
 function deleteEMI(id) {
-  if(!confirm('Delete this EMI?')) return;
-  D.data.emis=D.data.emis.filter(e=>e.id!==id);
-  save(); renderAll(); closeAll(); toast('EMI deleted','ok');
+  const e=emiById(id); if(!e) return;
+  D.data.emis=D.data.emis.filter(x=>x.id!==id);
+  save(); renderAll(); closeAll();
+  toastUndo('EMI deleted', ()=>{ D.data.emis.push(e); save(); renderAll(); });
 }
 
 function saveInvestment(editId) {
@@ -3325,9 +3457,10 @@ function saveInvestment(editId) {
 }
 function editInvestment(id) { openAdd('investment',id); }
 function deleteInvestment(id) {
-  if(!confirm('Delete this investment?')) return;
+  const inv=D.data.investments.find(i=>i.id===id); if(!inv) return;
   D.data.investments=D.data.investments.filter(i=>i.id!==id);
-  save(); renderAll(); closeAll(); toast('Investment deleted','ok');
+  save(); renderAll(); closeAll();
+  toastUndo('Investment deleted', ()=>{ D.data.investments.push(inv); save(); renderAll(); });
 }
 
 function saveAccount(editId) {
@@ -3433,6 +3566,60 @@ function markAllChitsPaid() {
   });
   save(); renderAll();
   toast('✅ All chit contributions marked paid for '+MN[m],'ok');
+}
+function showMonthClose(y,m) {
+  const income=monthTotalIncome(y,m);
+  const salary=monthSalaryIncome(y,m);
+  const exps=monthExpenses(y,m);
+  const spent=exps.reduce((s,e)=>s+e.amount,0);
+  const emiAmt=D.data.emis.filter(e=>e.remaining>0).reduce((s,e)=>s+e.monthly,0);
+  const chitAmt=D.data.chits.filter(c=>c.status==='active').reduce((s,c)=>s+c.monthly,0);
+  const sipAmt=totalSIP();
+  const saved=income-spent-emiAmt-sipAmt-chitAmt;
+  const cats={}; exps.forEach(e=>{cats[e.category]=(cats[e.category]||0)+e.amount;});
+  const topCats=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const pd=new Date(y,m-1,1);
+  const prevSpent=monthExpenses(pd.getFullYear(),pd.getMonth()).reduce((s,e)=>s+e.amount,0);
+  const diff=prevSpent>0?((spent-prevSpent)/prevSpent*100):null;
+  const nextD=new Date(y,m+1,1);
+  openMod(`📋 ${MN[m]} ${y} — Month Closed`,`
+    <div style="background:var(--card2);border-radius:var(--rr);padding:14px;margin-bottom:14px;text-align:center">
+      <div style="font-size:.66rem;color:var(--t3)">Net Result</div>
+      <div style="font-family:var(--fm);font-size:1.5rem;color:${saved>=0?'var(--g)':'var(--r)'}">${saved>=0?'+':''}${fmt(saved)}</div>
+      <div style="font-size:.62rem;color:var(--t3);margin-top:2px">${saved>=0?'saved after all commitments':'overspent this month'}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div class="card" style="padding:10px"><div style="font-size:.58rem;color:var(--t3)">Income</div><div style="font-family:var(--fm);font-size:.92rem;color:var(--g)">${fmt(income)}</div></div>
+      <div class="card" style="padding:10px"><div style="font-size:.58rem;color:var(--t3)">Spent</div><div style="font-family:var(--fm);font-size:.92rem;color:var(--r)">${fmt(spent)}${diff!==null?`<span style="font-size:.6rem;color:${diff>0?'var(--r)':'var(--g)'}"> ${diff>0?'▲':'▼'}${Math.abs(diff).toFixed(0)}%</span>`:''}</div></div>
+      <div class="card" style="padding:10px"><div style="font-size:.58rem;color:var(--t3)">EMI + Chit</div><div style="font-family:var(--fm);font-size:.92rem;color:var(--am)">${fmt(emiAmt+chitAmt)}</div></div>
+      <div class="card" style="padding:10px"><div style="font-size:.58rem;color:var(--t3)">Invested</div><div style="font-family:var(--fm);font-size:.92rem;color:var(--bl)">${fmt(sipAmt)}</div></div>
+    </div>
+    ${topCats.length?`<div style="font-size:.75rem;font-weight:500;margin-bottom:8px">Top Spending</div>
+    <div style="margin-bottom:14px">${topCats.map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:.76rem;padding:6px 0;border-bottom:1px solid var(--border)"><span>${CAT_ICONS[c]||'📦'} ${c}</span><span style="font-family:var(--fm)">${fmt(v)}</span></div>`).join('')}</div>`:''}
+    <button class="sbtn" onclick="closeAll();selMonth(${nextD.getFullYear()},${nextD.getMonth()})">Continue to ${MN[nextD.getMonth()]} →</button>
+    <div style="text-align:center;margin-top:10px"><span style="font-size:.7rem;color:var(--t3);cursor:pointer" onclick="closeAll()">Dismiss</span></div>`);
+}
+function handleShortcutHash() {
+  const hash=(location.hash||'').replace('#','');
+  if(!hash) return;
+  history.replaceState(null,'',location.pathname+location.search); // clear hash so it doesn't refire on reload
+  setTimeout(()=>{
+    if(hash==='expense') openAdd('expense');
+    else if(hash==='income') openAdd('income');
+    else if(hash==='paychit') payChitQuickAction();
+    else if(hash==='report') openPage('Report');
+  },100);
+}
+function checkMonthClose() {
+  const now=new Date();
+  const curKey=mk(now.getFullYear(),now.getMonth());
+  if(D.data.settings.lastMonthCloseSeen===curKey) return;
+  const pd=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const py=pd.getFullYear(), pm=pd.getMonth();
+  const hadActivity=monthExpenses(py,pm).length>0||monthIncomes(py,pm).length>0;
+  D.data.settings.lastMonthCloseSeen=curKey;
+  save();
+  if(hadActivity) setTimeout(()=>showMonthClose(py,pm), 700);
 }
 function payChitQuickAction() {
   const {y,m} = D.sel;
@@ -3662,9 +3849,10 @@ function saveGoal(editId) {
 }
 function editGoal(id) { openAdd('goal',id); }
 function deleteGoal(id) {
-  if(!confirm('Delete this goal?')) return;
-  D.data.goals=(D.data.goals||[]).filter(g=>g.id!==id);
-  save(); renderAll(); closeAll(); toast('Goal deleted','ok');
+  const g=(D.data.goals||[]).find(x=>x.id===id); if(!g) return;
+  D.data.goals=(D.data.goals||[]).filter(x=>x.id!==id);
+  save(); renderAll(); closeAll();
+  toastUndo('Goal deleted', ()=>{ D.data.goals.push(g); save(); renderAll(); });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3823,6 +4011,21 @@ function toast(msg,type='') {
   el.textContent=msg;
   el.className='toast show'+(type?' '+type:'');
   clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),3000);
+}
+let _undoTimer=null;
+function toastUndo(msg, restoreFn) {
+  const el=document.getElementById('toast');
+  el.innerHTML=`<span>${msg}</span> <span style="text-decoration:underline;font-weight:700;cursor:pointer;margin-left:10px;white-space:nowrap" onclick="undoLastDelete()">UNDO</span>`;
+  el.className='toast show';
+  window._pendingUndo=restoreFn;
+  clearTimeout(_tt); clearTimeout(_undoTimer);
+  _undoTimer=setTimeout(()=>{ el.classList.remove('show'); window._pendingUndo=null; },5000);
+}
+function undoLastDelete() {
+  if(window._pendingUndo){ window._pendingUndo(); window._pendingUndo=null; }
+  const el=document.getElementById('toast');
+  el.classList.remove('show');
+  clearTimeout(_undoTimer);
 }
 
 // ══════════════════════════════════════════════════════════
