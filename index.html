@@ -1741,7 +1741,7 @@ function renderEMI() {
   for(let i=0;i<12;i++){
     const fd=new Date(now.getFullYear(),now.getMonth()+i,1);
     const at=active.filter(e=>e.remaining>i);
-    const chitsAt=activeChits.filter(c=>Math.max(0,c.months-chitContributedMonths(c.id))>i);
+    const chitsAt=activeChits.filter(c=>Math.max(0,chitTotalMonths(c)-chitContributedMonths(c.id))>i);
     forecast.push({label:MS[fd.getMonth()]+' '+fd.getFullYear(),total:at.reduce((s,e)=>s+e.monthly,0)+chitsAt.reduce((s,c)=>s+c.monthly,0),count:at.length+chitsAt.length,emiTotal:at.reduce((s,e)=>s+e.monthly,0),chitTotal:chitsAt.reduce((s,c)=>s+c.monthly,0)});
   }
 
@@ -2244,7 +2244,12 @@ function renderSavings() {
   const grandTotal=totInv+chitContributed;
   const byType={};
   invs.forEach(i=>{const t=i.type;if(!byType[t])byType[t]=0;byType[t]+=(i.currentValue||i.principal||0);});
-  if(chitContributed>0) byType['chit']=chitContributed;
+  const breakdownRows=Object.entries(byType).map(([t,v])=>({label:INV_LABELS[t]||t,value:v}));
+  D.data.chits.forEach(c=>{
+    const contributed=c.contribHistory?Object.values(c.contribHistory).reduce((s,h)=>s+(h.paidAmt||0),0):0;
+    if(contributed>0) breakdownRows.push({label:'🏺 '+c.name,value:contributed});
+  });
+  breakdownRows.sort((a,b)=>b.value-a.value);
 
   document.getElementById('cSavings').innerHTML = `
   <div style="display:flex;gap:7px;margin-bottom:2px">
@@ -2262,11 +2267,11 @@ function renderSavings() {
     ${chitContributed>0?`<div style="margin-top:8px;font-size:.68rem;color:var(--t3)">Includes ${fmt(chitContributed)} contributed into chit funds (FD/RD/investments: ${fmt(totInv)})</div>`:''}
   </div>
 
-  ${Object.keys(byType).length?`<div class="card fi2">
+  ${breakdownRows.length?`<div class="card fi2">
     <div class="st" style="margin-bottom:12px">Portfolio Breakdown</div>
-    ${Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{const p=pct(v,grandTotal);return`<div style="margin-bottom:10px">
+    ${breakdownRows.map(row=>{const p=pct(row.value,grandTotal);return`<div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px">
-        <span>${INV_LABELS[t]||t}</span><span style="font-family:var(--fm);font-size:.76rem">${fmt(v)} <span style="color:var(--t3)">(${p.toFixed(0)}%)</span></span>
+        <span>${row.label}</span><span style="font-family:var(--fm);font-size:.76rem">${fmt(row.value)} <span style="color:var(--t3)">(${p.toFixed(0)}%)</span></span>
       </div><div class="pb2"><div class="pf g" style="width:${p.toFixed(0)}%"></div></div>
     </div>`;}).join('')}
   </div>`:''}
@@ -2294,20 +2299,40 @@ function renderSavings() {
 
   <!-- CHIT FUNDS -->
   <div class="fi2">
-    <div class="sh"><div class="st">🏺 Chit Funds</div><div class="sa" onclick="openAdd('chit')">+ Add</div></div>
+    <div class="sh"><div class="st">🏺 Chit Funds${chits.length>1?` (${chits.length})`:''}</div><div class="sa" onclick="openAdd('chit')">+ Add</div></div>
     ${isCurM&&pendingChitsForMonth(y,m).length>0?`<button class="sbtn sec sm" style="margin-bottom:8px" onclick="markAllChitsPaid()">✅ Mark All Chit Contributions Paid for ${MS[m]}</button>`:''}
-    ${chits.length?`<div style="display:flex;flex-direction:column;gap:7px">
-      ${chits.map(c=>{
+    ${chits.length>1?`<div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="sbtn sm ${D._chitView!=='compare'?'':'sec'}" style="flex:1" onclick="D._chitView='cards';renderSavings()">🗂 Cards</button>
+      <button class="sbtn sm ${D._chitView==='compare'?'':'sec'}" style="flex:1" onclick="D._chitView='compare';renderSavings()">📊 Compare</button>
+    </div>`:''}
+    ${chits.length>1&&D._chitView==='compare'?`<div style="overflow-x:auto;margin-bottom:10px"><table class="tbl">
+      <thead><tr><th>Chit</th><th>Monthly</th><th>Paid</th><th>Left</th><th>Ends</th></tr></thead>
+      <tbody>${chits.map(c=>{
+        const totalMonths=chitTotalMonths(c);
         const contributedMonths=chitContributedMonths(c.id);
-        const remainingMonths=Math.max(0,c.months-contributedMonths);
-        const paidPct=pct(c.actualReceived||0,c.totalExpected||c.monthly*c.months||1);
+        const remainingMonths=Math.max(0,totalMonths-contributedMonths);
+        return `<tr style="cursor:pointer" onclick="viewChit('${c.id}')">
+          <td>${c.name}</td>
+          <td class="mn">${fmt(c.monthly)}</td>
+          <td style="color:var(--g)">${contributedMonths}/${totalMonths}</td>
+          <td style="color:var(--am)">${remainingMonths}</td>
+          <td style="font-size:.68rem;color:var(--t3)">${c.endDate?new Date(c.endDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'}):'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`:''}
+    ${(chits.length<=1||D._chitView!=='compare')?(chits.length?`<div style="display:flex;flex-direction:column;gap:7px">
+      ${chits.map(c=>{
+        const totalMonths=chitTotalMonths(c);
+        const contributedMonths=chitContributedMonths(c.id);
+        const remainingMonths=Math.max(0,totalMonths-contributedMonths);
+        const paidPct=pct(c.actualReceived||0,c.totalExpected||c.monthly*totalMonths||1);
         return`<div class="chitc" onclick="viewChit('${c.id}')">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><div class="chitn">${c.name}</div>
-              <div class="chitm">${fmt(c.monthly)}/mo · ${contributedMonths}/${c.months} months paid${c.status==='active'?' · '+remainingMonths+' left':''}</div>
+              <div class="chitm">${fmt(c.monthly)}/mo · ${contributedMonths}/${totalMonths} months paid${c.status==='active'?' · '+remainingMonths+' left':''}${c.endDate?' · ends '+new Date(c.endDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''}</div>
             </div>
             <div style="text-align:right">
-              <div class="chita">${fmt(c.totalExpected||c.monthly*c.months||0)}</div>
+              <div class="chita">${fmt(c.totalExpected||c.monthly*totalMonths||0)}</div>
               <span class="bdg ${c.status==='active'?'a':c.status==='closed'?'bl':'g'}" style="margin-top:3px">${c.status}</span>
             </div>
           </div>
@@ -2322,7 +2347,7 @@ function renderSavings() {
             </div>`;
           })():''}
         </div>`;}).join('')}
-    </div>`:`<div class="empty"><div class="eic">🏺</div><div class="em">No chit funds added.</div></div>`}
+    </div>`:`<div class="empty"><div class="eic">🏺</div><div class="em">No chit funds added.</div></div>`):''}
   </div>
 
   <!-- SAVINGS GOALS -->
@@ -3092,15 +3117,18 @@ function openAdd(type, editId) {
         <div class="fg"><label class="fl">Total Months</label><input class="fi" type="number" id="fChitMths" value="${c?c.months:''}" placeholder="20"/></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="fl">Start Date</label><input class="fi" type="date" id="fChitStart" value="${c?c.startDate:td()}"/></div>
-        <div class="fg"><label class="fl">Next Due</label><input class="fi" type="date" id="fChitDue" value="${c?c.nextDue:td()}"/></div>
+        <div class="fg"><label class="fl">Start Date</label><input class="fi" type="date" id="fChitStart" value="${c?c.startDate:td()}" onchange="autoCalcChitMonths()"/></div>
+        <div class="fg"><label class="fl">End Date (optional)</label><input class="fi" type="date" id="fChitEnd" value="${c&&c.endDate?c.endDate:''}" onchange="autoCalcChitMonths()"/></div>
       </div>
+      <div class="fg" id="fChitEndHint"></div>
+      <div class="fg"><label class="fl">Next Due</label><input class="fi" type="date" id="fChitDue" value="${c?c.nextDue:td()}"/></div>
       <div class="fg"><label class="fl">Expected Payout (₹)</label>
         <input class="fi" type="number" id="fChitTotal" value="${c?c.totalExpected:''}" placeholder="Leave blank = monthly × months" inputmode="decimal"/></div>
       <div class="fg"><label class="fl">Deduct from Account</label>
         <select class="fs" id="fChitAcc"><option value="">Cash</option>${accOpts}</select></div>
       ${c?`<button class="sbtn" onclick="saveChit('${editId}')">Save Changes</button>`:`<button class="sbtn" onclick="saveChit()">Add Chit</button>`}`);
     if(c&&c.accountId) setTimeout(()=>{const el=document.getElementById('fChitAcc');if(el)el.value=c.accountId;},30);
+    if(c&&c.endDate) setTimeout(autoCalcChitMonths,30);
   }
 
   // BUDGET
@@ -3653,7 +3681,7 @@ function quickPayChit(chitId) {
     <div style="background:var(--card2);border-radius:var(--rr);padding:12px;margin-bottom:13px;text-align:center">
       <div style="font-size:.65rem;color:var(--t3)">This Month's Contribution</div>
       <div style="font-family:var(--fm);font-size:1.5rem;color:var(--am)">${fmt(c.monthly)}</div>
-      <div style="font-size:.62rem;color:var(--t3)">${chitContributedMonths(chitId)} of ${c.months} months contributed so far</div>
+      <div style="font-size:.62rem;color:var(--t3)">${chitContributedMonths(chitId)} of ${chitTotalMonths(c)} months contributed so far</div>
     </div>
     <div class="fg"><label class="fl">Payment Type</label>
       <select class="fs" id="qcPayType">
@@ -3705,7 +3733,7 @@ function viewChitHistory(chitId) {
     <div style="background:var(--card2);border-radius:var(--rr);padding:11px;margin-bottom:13px">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
         <div><div style="font-size:.58rem;color:var(--t3)">Monthly</div><div style="font-family:var(--fm);font-size:.9rem">${fmt(c.monthly)}</div></div>
-        <div><div style="font-size:.58rem;color:var(--t3)">Contributed</div><div style="font-family:var(--fm);font-size:.9rem;color:var(--g)">${chitContributedMonths(chitId)}/${c.months}</div></div>
+        <div><div style="font-size:.58rem;color:var(--t3)">Contributed</div><div style="font-family:var(--fm);font-size:.9rem;color:var(--g)">${chitContributedMonths(chitId)}/${chitTotalMonths(c)}</div></div>
         <div><div style="font-size:.58rem;color:var(--t3)">Total Paid In</div><div style="font-family:var(--fm);font-size:.9rem;color:var(--am)">${fmt(chitContributedMonths(chitId)*c.monthly)}</div></div>
       </div>
     </div>
@@ -3728,20 +3756,40 @@ function viewChitHistory(chitId) {
     </div>`);
 }
 
+function monthsBetweenDates(startStr, endStr) {
+  const s=new Date(startStr), e=new Date(endStr);
+  return Math.max(1,(e.getFullYear()-s.getFullYear())*12+(e.getMonth()-s.getMonth())+1);
+}
+function chitTotalMonths(c) {
+  return c.endDate ? monthsBetweenDates(c.startDate, c.endDate) : (c.months||0);
+}
+function autoCalcChitMonths() {
+  const startEl=document.getElementById('fChitStart');
+  const endEl=document.getElementById('fChitEnd');
+  const mthsEl=document.getElementById('fChitMths');
+  const hintEl=document.getElementById('fChitEndHint');
+  if(!startEl||!endEl||!mthsEl) return;
+  if(startEl.value&&endEl.value){
+    const n=monthsBetweenDates(startEl.value,endEl.value);
+    mthsEl.value=n;
+    if(hintEl) hintEl.innerHTML=`<div class="fhint">📅 ${n} month${n!==1?'s':''} from start to end date — Total Months auto-set. This end date is now used for all remaining/forecast calculations.</div>`;
+  } else if(hintEl) hintEl.innerHTML='';
+}
 function saveChit(editId) {
   const name=document.getElementById('fChitName').value.trim();
   const mon=parseFloat(document.getElementById('fChitMon').value)||0;
   const months=parseInt(document.getElementById('fChitMths').value)||0;
   const start=document.getElementById('fChitStart').value;
+  const end=document.getElementById('fChitEnd').value||null;
   const due=document.getElementById('fChitDue').value;
   const total=parseFloat(document.getElementById('fChitTotal').value)||(mon*months);
   const accId=document.getElementById('fChitAcc').value;
   if(!name||!mon||!months) return toast('Fill name, monthly and months','err');
   if(editId) {
     const c=chitById(editId); if(!c) return;
-    Object.assign(c,{name,monthly:mon,months,startDate:start,nextDue:due,totalExpected:total,accountId:accId});
+    Object.assign(c,{name,monthly:mon,months,startDate:start,endDate:end,nextDue:due,totalExpected:total,accountId:accId});
   } else {
-    D.data.chits.push({id:uid(),name,monthly:mon,months,startDate:start,nextDue:due,totalExpected:total,actualReceived:0,status:'active',accountId:accId,payouts:[],contribHistory:{}});
+    D.data.chits.push({id:uid(),name,monthly:mon,months,startDate:start,endDate:end,nextDue:due,totalExpected:total,actualReceived:0,status:'active',accountId:accId,payouts:[],contribHistory:{}});
   }
   save(); renderAll(); closeAll();
   toast(`✅ Chit ${editId?'updated':'added'}: ${name}`,'ok');
@@ -3749,13 +3797,14 @@ function saveChit(editId) {
 
 function viewChit(id) {
   const c=chitById(id); if(!c) return;
-  const totalPaid=(c.months*c.monthly);
+  const totalMonths=chitTotalMonths(c);
+  const totalPaid=(totalMonths*c.monthly);
   const diff=(c.actualReceived||0)-(c.totalExpected||totalPaid);
   openMod('🏺 '+c.name,`
     <div style="background:var(--card2);border-radius:var(--rr);padding:14px;margin-bottom:14px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><div style="font-size:.6rem;color:var(--t3)">Monthly</div><div style="font-family:var(--fm)">${fmt(c.monthly)}</div></div>
-        <div><div style="font-size:.6rem;color:var(--t3)">Months</div><div style="font-family:var(--fm)">${c.months}</div></div>
+        <div><div style="font-size:.6rem;color:var(--t3)">Months</div><div style="font-family:var(--fm)">${chitContributedMonths(id)}/${totalMonths}${c.endDate?' (ends '+new Date(c.endDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+')':''}</div></div>
         <div><div style="font-size:.6rem;color:var(--t3)">Expected Payout</div><div style="font-family:var(--fm);color:var(--am)">${fmt(c.totalExpected||totalPaid)}</div></div>
         <div><div style="font-size:.6rem;color:var(--t3)">Received</div><div style="font-family:var(--fm);color:var(--g)">${fmt(c.actualReceived||0)}</div></div>
       </div>
@@ -3781,7 +3830,7 @@ function declareChitPayout(id) {
   const c=chitById(id); if(!c) return;
   const accs=D.data.accounts;
   const accOpts=accs.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-  const expected=c.totalExpected||c.monthly*c.months||0;
+  const expected=c.totalExpected||c.monthly*chitTotalMonths(c)||0;
   openMod('💵 Declare Chit Payout',`
     <div style="background:var(--card2);border-radius:var(--rr);padding:10px;margin-bottom:12px;font-size:.76rem;color:var(--t2)">
       Calculated value: <strong>${fmt(expected)}</strong>
@@ -3817,7 +3866,7 @@ function saveChitPayout(id) {
   if(status==='closed') c.status='closed';
   if(accId) credit(accId,amt,'Chit payout: '+c.name,date);
   save(); renderAll(); closeAll();
-  const expected=c.totalExpected||c.monthly*c.months||0;
+  const expected=c.totalExpected||c.monthly*chitTotalMonths(c)||0;
   const diff=amt-expected;
   toast(`✅ ${fmt(amt)} received${Math.abs(diff)>0?' ('+(diff>=0?'+':'')+fmt(diff)+' vs calc)':''}`,'ok');
 }
